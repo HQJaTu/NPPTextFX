@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="5" />
+	<Project>
+		<Option title="tidydll (MinGW)" />
+		<Option pch_mode="0" />
+		<Option default_target="Win32 EXE" />
+		<Option compiler="gcc" />
+		<Option virtualFolders="" />
+		<Build>
+			<Target title="Win32 Release (__cdecl)">
+				<Option output="..\..\..\libTidy.dll" prefix_auto="0" extension_auto="0" />
+				<Option working_dir="..\.." />
+				<Option object_output="ReleaseDLL" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option host_application="c:\Program Files\Notepad++\notepad++.exe" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-fexpensive-optimizations" />
+					<Add option="-O2" />
+					<Add option="-DTIDY_CALL=__cdecl" />
+					<Add option="-DTIDY_EXPORT=__declspec(dllexport)" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+			<Target title="Win32 Release (__stdcall)">
+				<Option output="..\..\..\libTidy.dll" prefix_auto="0" extension_auto="0" />
+				<Option working_dir="..\.." />
+				<Option object_output="ReleaseDLL" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option host_application="c:\Program Files\Notepad++\notepad++.exe" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-fexpensive-optimizations" />
+					<Add option="-O2" />
+					<Add option="-DTIDY_CALL=__stdcall" />
+					<Add option="-DTIDY_EXPORT=__declspec(dllexport)" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+			<Target title="Win32 Debug">
+				<Option output="..\..\..\libTidy.dll" prefix_auto="0" extension_auto="0" />
+				<Option working_dir="..\.." />
+				<Option object_output="DebugDLL" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option host_application="c:\Program Files\Notepad++\notepad++.exe" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-W" />
+					<Add option="-D_DEBUG" />
+					<Add option="-DTIDY_EXPORT=__declspec(dllexport)" />
+				</Compiler>
+			</Target>
+			<Target title="Win32 EXE">
+				<Option output="tidyHTML.exe" prefix_auto="0" extension_auto="0" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option projectResourceIncludeDirsRelation="1" />
+				<Compiler>
+					<Add option="-fexpensive-optimizations" />
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-D_WIN32" />
+			<Add option="-DSUPPORT_UTF16_ENCODINGS=1" />
+			<Add option="-DSUPPORT_ASIAN_ENCODINGS=1" />
+			<Add option="-DSUPPORT_ACCESSIBILITY_CHECKS=1" />
+			<Add directory="..\..\tidylib\include" />
+		</Compiler>
+		<Linker>
+			<Add option="--no-export-all-symbols" />
+		</Linker>
+		<Unit filename="..\..\tidy\tidy.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\include\buffio.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\include\fileio.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\include\platform.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\include\tidy.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\include\tidyenum.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\access.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\access.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\alloc.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\attrask.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\attrdict.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\attrdict.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\attrget.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\attrs.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\attrs.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\buffio.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\clean.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\clean.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\config.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\config.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\entities.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\entities.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\fileio.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\forward.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\istack.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\lexer.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\lexer.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\localize.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\message.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\parser.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\parser.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\pprint.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\pprint.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\streamio.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\streamio.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\tagask.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\tags.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\tags.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\tidy-int.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\tidylib.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\tmbstr.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\tmbstr.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\utf8.c">
+			<Option compilerVar="CC" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Unit filename="..\..\tidylib\src\utf8.h">
+			<Option compilerVar="" />
+			<Option compile="0" />
+			<Option link="0" />
+			<Option target="Win32 Release (__cdecl)" />
+			<Option target="Win32 Release (__stdcall)" />
+			<Option target="Win32 Debug" />
+			<Option target="Win32 EXE" />
+		</Unit>
+		<Extensions />
+	</Project>
+</CodeBlocks_project_file>
