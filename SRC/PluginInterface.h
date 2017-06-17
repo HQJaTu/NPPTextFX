@@ -56,15 +56,10 @@ struct ShortcutKey {
 };
 
 #define PFUNCPLUGINCMD void __cdecl /* Some compilers cannot use the typedef in every case. This define works to alter function declarations with all compilers */
-#if !defined(__WATCOMC__) || defined(__cplusplus)
 typedef void (__cdecl PFUNCPLUGINCMD_MSC)(void); /* MSC is unable to declare variables without a typedef. Compilers other than Watcom prefer this method also but often work with warnings with the #define. */
-#else
-#define PFUNCPLUGINCMD_MSC PFUNCPLUGINCMD /* Watcom C does not allow conversion between typedefs and nontypedefs whether or not they are identical. */
-#endif
 
 struct FuncItem {
 	NPPCHAR _itemName[nbChar];
-	//PFUNCPLUGINCMD _pFunc;
 	PFUNCPLUGINCMD_MSC *_pFunc;
 	int _cmdID;
 	bool _init2Check;

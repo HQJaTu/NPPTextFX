@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.26430.12
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TextFX", "TextFX.vcxproj", "{7B3DDD96-26BC-4040-B041-4437E3170065}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Tests", "..\Tests\Tests.vcxproj", "{22171F37-CDD9-4F5A-BFC8-976C05612B53}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug Unicode|x64 = Debug Unicode|x64
+		Debug Unicode|x86 = Debug Unicode|x86
+		Release Unicode|x64 = Release Unicode|x64
+		Release Unicode|x86 = Release Unicode|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7B3DDD96-26BC-4040-B041-4437E3170065}.Debug Unicode|x64.ActiveCfg = Debug Unicode|x64
+		{7B3DDD96-26BC-4040-B041-4437E3170065}.Debug Unicode|x64.Build.0 = Debug Unicode|x64
+		{7B3DDD96-26BC-4040-B041-4437E3170065}.Debug Unicode|x86.ActiveCfg = Debug Unicode|Win32
+		{7B3DDD96-26BC-4040-B041-4437E3170065}.Debug Unicode|x86.Build.0 = Debug Unicode|Win32
+		{7B3DDD96-26BC-4040-B041-4437E3170065}.Release Unicode|x64.ActiveCfg = Release Unicode|x64
+		{7B3DDD96-26BC-4040-B041-4437E3170065}.Release Unicode|x64.Build.0 = Release Unicode|x64
+		{7B3DDD96-26BC-4040-B041-4437E3170065}.Release Unicode|x86.ActiveCfg = Release Unicode|Win32
+		{7B3DDD96-26BC-4040-B041-4437E3170065}.Release Unicode|x86.Build.0 = Release Unicode|Win32
+		{22171F37-CDD9-4F5A-BFC8-976C05612B53}.Debug Unicode|x64.ActiveCfg = Debug|x64
+		{22171F37-CDD9-4F5A-BFC8-976C05612B53}.Debug Unicode|x86.ActiveCfg = Debug|Win32
+		{22171F37-CDD9-4F5A-BFC8-976C05612B53}.Debug Unicode|x86.Build.0 = Debug|Win32
+		{22171F37-CDD9-4F5A-BFC8-976C05612B53}.Release Unicode|x64.ActiveCfg = Release|x64
+		{22171F37-CDD9-4F5A-BFC8-976C05612B53}.Release Unicode|x64.Build.0 = Release|x64
+		{22171F37-CDD9-4F5A-BFC8-976C05612B53}.Release Unicode|x86.ActiveCfg = Release|Win32
+		{22171F37-CDD9-4F5A-BFC8-976C05612B53}.Release Unicode|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

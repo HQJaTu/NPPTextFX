@@ -2,22 +2,25 @@ struct MICROXML {
 //public: vars do not start with _
   unsigned uLevel;
   BOOL iUsed;
-  char *sValue; unsigned uValueLen; // (almost) always points into _sBuf
-  char *sValueConverted; unsigned uValueConvertedSz,uValueConvertedLen; // NULL or a malloc()'d string with the converted contents of sValue
-  char *sAttribute; unsigned uAttributeLen; // always points into _sBuf
-  char *sPath;
+  TCHAR *sValue;
+  unsigned uValueLen; // (almost) always points into _sBuf
+  TCHAR *sValueConverted;
+  unsigned uValueConvertedSz,uValueConvertedLen; // NULL or a malloc()'d string with the converted contents of sValue
+  TCHAR *sAttribute;
+  unsigned uAttributeLen; // always points into _sBuf
+  TCHAR *sPath;
   unsigned uPathSz;
   unsigned uPathLen;
-  char *sLeaf; // always points into sXMLPath
+  TCHAR *sLeaf; // always points into sXMLPath
   unsigned uLeafLen;
   unsigned cQuote;
-  char sVersion[16];
-  char sEncoding[16];
+  TCHAR sVersion[16];
+  TCHAR sEncoding[16];
   //void *vUserData;    // caller defined value
   //unsigned uUserData; // caller defined value
 //private: vars start with _
-  char *_psBufBegin,*_psBufEnd; // these point within _sBuf
-  char *_sBuf;
+  TCHAR *_psBufBegin,*_psBufEnd; // these point within _sBuf
+  TCHAR *_sBuf;
   unsigned _uSbufSz;
   HANDLE _hFileHandle;
   int _iState;
@@ -38,18 +41,18 @@ struct MICROXML {
 #define MX_ATTRIBUTESPECIAL 255 /* This is a state allowing <?xml ... ?>, this is never returned as a value */
 
 EXTERNC int XMLRead(struct MICROXML *pmx);
-EXTERNC BOOL XMLReadOpen(struct MICROXML *pmx,const char *fn,DWORD oflags,DWORD shflags);
+EXTERNC BOOL XMLReadOpen(struct MICROXML *pmx,const TCHAR *fn,DWORD oflags,DWORD shflags);
 EXTERNC void XMLReadClose(struct MICROXML *pmx);
 
 EXTERNC void XMLWriteClose(HANDLE fo);
 EXTERNC void XMLWriteLevelDown(HANDLE fo,unsigned uLevel);
-EXTERNC void XMLWriteLevelUp(HANDLE fo,unsigned uLevel,const char *sTag,unsigned uTagLen);
-EXTERNC void XMLWriteLevelDownSame(HANDLE fo,const char *sTag,unsigned uTagLen);
-EXTERNC void XMLWriteAttribute(HANDLE fo,const char *sAttribute,unsigned uAttributeLen,const char *sValue,unsigned uValueLen,unsigned cQuote);
-EXTERNC void XMLWriteText(HANDLE fo,const char *sValue,unsigned uValueLen,const char *szPfxSfx);
-EXTERNC void XMLWriteComment(HANDLE fo,unsigned uLevel,const char *sValue,unsigned uValueLen);
-EXTERNC HANDLE XMLWriteCreat(const char *szfn,const char *szVersion,const char *szEncoding);
+EXTERNC void XMLWriteLevelUp(HANDLE fo, unsigned uLevel, const TCHAR *sTag, size_t uTagLen);
+EXTERNC void XMLWriteLevelDownSame(HANDLE fo,const TCHAR *sTag,unsigned uTagLen);
+EXTERNC void XMLWriteAttribute(HANDLE fo,const TCHAR *sAttribute,unsigned uAttributeLen,const TCHAR *sValue,unsigned uValueLen,unsigned cQuote);
+EXTERNC void XMLWriteText(HANDLE fo,const TCHAR *sValue, unsigned uValueLen,const TCHAR *szPfxSfx);
+EXTERNC void XMLWriteComment(HANDLE fo,unsigned uLevel, const TCHAR *sValue, unsigned uValueLen);
+EXTERNC HANDLE XMLWriteCreat(const TCHAR *szfn, const TCHAR *szVersion, const TCHAR *szEncoding);
 #if NPPDEBUG
-EXTERNC void XMLTest(const char *fn1,const char *fn2);
+EXTERNC void XMLTest(const TCHAR *fn1, const TCHAR *fn2);
 #endif
 EXTERNC int XMLReadLevel(struct MICROXML *pmx,unsigned uLevel,int iXMLReadOld);

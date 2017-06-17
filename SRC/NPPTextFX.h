@@ -2,7 +2,7 @@
 //#define SUPPORT_PATH "NPPTextFX" /* thanks to smprintfpath we don't need to put a slash on the end of this */
 
 #ifdef _MSC_VER
-#define vsnprintf _vsnprintf /* why doesn't Microsoft provide this now standard function? */
+#define vsnprintf _vsnwprintf /* why doesn't Microsoft provide this now standard function? */
 #endif
 #if NPPDEBUG
 #if (defined(__DMC__) || defined(_MSC_VER))
@@ -26,16 +26,19 @@
 #define NELEM(xyzzy) (sizeof(xyzzy)/sizeof(xyzzy[0]))
 #endif
 
+// Wide char helper
+#define CHARSIZE(size) (size_t)((size)*sizeof(TCHAR))
+
 #ifndef NPPDEBUG
 #error NPPDEBUG Must be defined as a -D option for all source files
 #endif
 
 EXTERNC void *ReallocFree(void *memblock, size_t size);
 #if NPPDEBUG
-EXTERNC void *freesafebounds(void *bf,unsigned ct,const char *title);
-EXTERNC void *reallocsafebounds(void *bf,unsigned ct);
-EXTERNC void freesafe(void *bf,const char *title);
-EXTERNC void *reallocsafeX(void *bf,unsigned ct,char *title,int allownull);
+EXTERNC void *freesafebounds(void *bf, unsigned ct, const TCHAR *title);
+EXTERNC void *reallocsafebounds(void *bf, size_t ct);
+EXTERNC void freesafe(void *bf, const TCHAR *title);
+EXTERNC void *reallocsafeX(void *bf, unsigned ct, TCHAR *title, int allownull);
 
 /* This will only be set by source code that promises to do this later */
 #ifndef NPPTextFX_DELAYUNSAFE
@@ -49,7 +52,7 @@ EXTERNC void *reallocsafeX(void *bf,unsigned ct,char *title,int allownull);
 #define strdup strdup_unsafe
 #endif
 
-EXTERNC char *strdupsafe(const char *source,char *title);
+EXTERNC TCHAR *strdupsafe(const TCHAR *source, TCHAR *title);
 #else
 #define mallocsafe(ct,ti) malloc(ct)
 #define reallocsafe(bf,ct,ti) ReallocFree(bf,ct)
@@ -63,17 +66,17 @@ EXTERNC char *strdupsafe(const char *source,char *title);
 #endif
 
 #if NPPDEBUG
-EXTERNC char *memdupsafe(const char *source,unsigned ls,char *title);
+EXTERNC TCHAR *memdupsafe(const TCHAR *source, unsigned ls, TCHAR *title);
 #else
 #define memdupsafe(bf,ln,ti) memdup(bf,ln)
-EXTERNC char *memdup(const char *source,unsigned ls);
+EXTERNC TCHAR *memdup(const TCHAR *source, unsigned ls);
 #endif
 
 #if NPPDEBUG
-EXTERNC char *memdupzsafe(const char *source,unsigned ls,char *title);
+EXTERNC TCHAR *memdupzsafe(const TCHAR *source, unsigned ls, TCHAR *title);
 #else
 #define memdupzsafe(bf,ln,ti) memdupz(bf,ln)
-EXTERNC char *memdupz(const char *source,unsigned ls);
+EXTERNC TCHAR *memdupz(const TCHAR *source, unsigned ls);
 #endif
 
 EXTERNC size_t roundtonextpower(size_t numo); /* round to next power */
@@ -81,10 +84,10 @@ EXTERNC size_t roundtonextpower(size_t numo); /* round to next power */
 #define ARMSTRATEGY_INCREASE 0 //increase buffer with slack space when necessary; good for a constantly expanding buffer
 #define ARMSTRATEGY_MAINTAIN 1 //increase buffer only the minimum amount, buffer will not be reduced if too large; good for a buffer that will be reused with some large and some small allocations
 #define ARMSTRATEGY_REDUCE 2   //increase buffer only the minimum amount, reduce buffer if too large; good for buffers of known size or that will only be used once
-EXTERNC int armrealloc(char **dest,unsigned *destsz,unsigned newsize,int strategy,int clear
+EXTERNC int armrealloc(TCHAR **dest, size_t *destsz, size_t newsize, int strategy, int clear
 #undef THETITLE
 #if NPPDEBUG
-,char *title
+, TCHAR *title
 #define armreallocsafe armrealloc
 #define THETITLE title
 #else
@@ -93,10 +96,10 @@ EXTERNC int armrealloc(char **dest,unsigned *destsz,unsigned newsize,int strateg
 #endif
 );
 
-EXTERNC int strncpyarm(char **dest,size_t *destsz,size_t *destlen,const char *source,size_t maxlen
+EXTERNC int strncpyarm(TCHAR **dest,size_t *destsz,size_t *destlen,const TCHAR *source,size_t maxlen
 #undef THETITLE
 #if NPPDEBUG
-,char *title
+, TCHAR *title
 #define strncpyarmsafe strncpyarm
 #define strcpyarmsafe(buf,bufsz,bufl,scsrc,ti) strncpyarm(buf,bufsz,bufl,scsrc,(unsigned)-1,ti)
 #define THETITLE title
@@ -107,10 +110,10 @@ EXTERNC int strncpyarm(char **dest,size_t *destsz,size_t *destlen,const char *so
 #endif
 );
 
-EXTERNC int memcpyarm(char **dest,size_t *destsz,size_t *destlen,const char *source,size_t slen
+EXTERNC int memcpyarm(void **dest,size_t *destsz,size_t *destlen,const TCHAR *source,size_t slen
 #undef THETITLE
 #if NPPDEBUG
-,char *title
+, TCHAR *title
 #define memcpyarmsafe memcpyarm
 #define THETITLE title
 #else
@@ -119,10 +122,10 @@ EXTERNC int memcpyarm(char **dest,size_t *destsz,size_t *destlen,const char *sou
 #endif
 );
 
-EXTERNC int memsetarm(char **dest,size_t *destsz,size_t *destlen,int chr,size_t slen
+EXTERNC int memsetarm(TCHAR **dest,size_t *destsz,size_t *destlen,int chr,size_t slen
 #undef THETITLE
 #if NPPDEBUG
-,char *title
+, TCHAR *title
 #define memsetarmsafe memsetarm
 #define THETITLE title
 #else
@@ -132,15 +135,15 @@ EXTERNC int memsetarm(char **dest,size_t *destsz,size_t *destlen,int chr,size_t 
 );
 #undef THETITLE
 
-EXTERNC size_t snprintfX(char *buffer,size_t buffersz,const char *format,...);
-EXTERNC size_t vsarmprintf(char **dest,size_t *destsz,size_t *destlen,const char *format,va_list ap2);
-EXTERNC size_t sarmprintf(char **dest,size_t *destsz,size_t *destlen,const char *format,...);
-EXTERNC char *smprintf(const char *format,...);
-EXTERNC size_t vsarmprintfpath(char **dest,unsigned *destsz,unsigned *destlen,const char *format,va_list ap2);
-EXTERNC size_t sarmprintfpath(char **dest,size_t *destsz,size_t *destlen,const char *format,...);
-EXTERNC char *smprintfpath(const char *format,...);
+EXTERNC size_t snprintfX(TCHAR *buffer,size_t buffersz,const TCHAR *format,...);
+EXTERNC size_t vsarmprintf(TCHAR **dest,size_t *destsz,size_t *destlen,const TCHAR *format,va_list ap2);
+EXTERNC size_t sarmprintf(TCHAR **dest,size_t *destsz,size_t *destlen,const TCHAR *format,...);
+EXTERNC TCHAR *smprintf(const TCHAR *format,...);
+EXTERNC size_t vsarmprintfpath(TCHAR **dest, size_t *destsz, size_t *destlen,const TCHAR *format,va_list ap2);
+EXTERNC size_t sarmprintfpath(TCHAR **dest,size_t *destsz,size_t *destlen,const TCHAR *format,...);
+EXTERNC TCHAR *smprintfpath(const TCHAR *format,...);
 EXTERNC int MessageBoxFree(HWND hWnd,TCHAR *lpText,LPCTSTR lpCaption,UINT uType);
-EXTERNC int memmovearm(char **dest,unsigned *destsz,unsigned *destlen,char *destp,char *sourcep
+EXTERNC int memmovearm(void **dest, size_t *destsz, size_t *destlen, TCHAR *destp, TCHAR *sourcep
 #if NPPDEBUG
 ,int notest
 #endif
@@ -152,20 +155,20 @@ EXTERNC int memmovearm(char **dest,unsigned *destsz,unsigned *destlen,char *dest
 #define memmovearmtest(dt,ds,dl,dp,sp,nt) memmovearm(dt,ds,dl,dp,sp)
 #endif
 
-EXTERNC void memcqspnstart(const char *find,unsigned findl,unsigned *quick);
-EXTERNC char *memcqspn(const char *buf,const char *end,const unsigned *quick);
-EXTERNC char *memqspn(const char *buf,const char *end,const unsigned *quick);
-EXTERNC char *memcspn(const char *buf,const char *end,const char *find,unsigned findl);
-EXTERNC char *memspn(const char *buf,const char *end,const char *find,unsigned findl);
-EXTERNC char *memstr(const char *buf,const char *end,const char *find,unsigned findl);
-EXTERNC char *memchrX(const char *buf,const char *end,unsigned find);
-EXTERNC char *strncpymem(char *szDest,size_t uDestSz,const char *sSource,unsigned uSourceLen);
+EXTERNC void memcqspnstart(const TCHAR *find,unsigned findl,unsigned *quick);
+EXTERNC TCHAR *memcqspn(const TCHAR *buf,const TCHAR *end,const unsigned *quick);
+EXTERNC TCHAR *memqspn(const TCHAR *buf,const TCHAR *end,const unsigned *quick);
+EXTERNC TCHAR *memcspn(const TCHAR *buf,const TCHAR *end,const TCHAR *find,unsigned findl);
+EXTERNC TCHAR *memspn(const TCHAR *buf,const TCHAR *end,const TCHAR *find,unsigned findl);
+EXTERNC TCHAR *memstr(const TCHAR *buf,const TCHAR *end,const TCHAR *find,unsigned findl);
+EXTERNC TCHAR *memchrX(const TCHAR *buf,const TCHAR *end,unsigned find);
+EXTERNC TCHAR *strncpymem(TCHAR *szDest,size_t uDestSz,const TCHAR *sSource,unsigned uSourceLen);
 #define strncpy strncpy_unsafe
-char *strtokX(char *szStr,unsigned *uPos,const char *szDeli);
+TCHAR *strtokX(TCHAR *szStr, unsigned *puPos, const TCHAR *szDeli);
 #define strtok strtok_unsafe
 EXTERNC unsigned powcheck(unsigned num);
 
-EXTERNC unsigned converteol(char **dest,unsigned *destsz,unsigned *destlen,unsigned eoltype);
+EXTERNC unsigned converteol(TCHAR **dest, size_t *destsz, size_t *destlen, unsigned eoltype);
 
 
 #define O_DENYWRITE FILE_SHARE_WRITE
@@ -179,16 +182,16 @@ EXTERNC unsigned converteol(char **dest,unsigned *destsz,unsigned *destlen,unsig
 #define _openX(filename,oflags,shflags) CreateFile(filename,oflags,shflags,NULL,OPEN_EXISTING,0,NULL)
 
 #define _creatX(filename,attrib) CreateFile(filename,GENERIC_WRITE,0,NULL,CREATE_ALWAYS,attrib,NULL)
-EXTERNC DWORD _writeX(HANDLE handle,const void *buf,DWORD len);
+EXTERNC DWORD _writeX(HANDLE handle, const void *buf, size_t len);
 EXTERNC DWORD _readX(HANDLE handle,void *buf,DWORD len);
 #define _closeX(hnd) CloseHandle(hnd)
 
-EXTERNC char *findnextquote(char *str,char *end,unsigned style);
+EXTERNC TCHAR *findnextquote(TCHAR *str, TCHAR *end,unsigned style);
 
-EXTERNC DWORD GetPrivateProfileStringarm(LPCTSTR lpAppName,LPCTSTR lpKeyName,LPCTSTR lpDefault,char **dest,unsigned *destsz,LPCTSTR lpFileName);
+EXTERNC DWORD GetPrivateProfileStringarm(LPCTSTR lpAppName, LPCTSTR lpKeyName, LPCTSTR lpDefault, TCHAR **dest, size_t *destsz, LPCTSTR lpFileName);
 EXTERNC BOOL WritePrivateProfileStringFree(LPCTSTR lpAppName,LPCTSTR lpKeyName,TCHAR *lpString,LPCTSTR lpFileName);
 
-EXTERNC BOOL isFileExist(const char *fn);
+EXTERNC BOOL isFileExist(const TCHAR *fn);
 
 /* examine shlobj.h for a valid range */
 #define CSIDLX_TEXTFXDATA         0x00FE // Static Data provided with install
@@ -198,5 +201,7 @@ EXTERNC BOOL isFileExist(const char *fn);
 #define CSIDLX_TEXTFXINIFILE      0x00FA
 #define CSIDLX_USER               0x00FA /* set this to the lowest custom value */
 
-EXTERNC unsigned NPPGetSpecialFolderLocationarm(int nFolder,const char *szName,char **pszFolder,unsigned *puFolderSz,unsigned *puFolderLen,const char *);
-EXTERNC BOOL XlatPathEnvVarsarm(char **dest,unsigned *destsz,unsigned *destlen);
+EXTERNC unsigned NPPGetSpecialFolderLocationarm(int nFolder, const TCHAR *szName, TCHAR **pszFolder, size_t *puFolderSz, unsigned *puFolderLen, const TCHAR *);
+EXTERNC BOOL XlatPathEnvVarsarm(TCHAR **dest, size_t *destsz, size_t *destlen);
+
+EXTERNC unsigned tidyHTML(char ** dest, unsigned * destsz, unsigned * destlen, unsigned eoltype, unsigned tabwidth);

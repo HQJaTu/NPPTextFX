@@ -82,11 +82,11 @@ unsigned UTF8FromUCS2(const wchar_t *uptro, unsigned int tlen, char *putf,unsign
 }
 
 // produces valid UTF-8 from possibly invalid UTF-8
-unsigned UTF8Validated(const char *s, unsigned int len, char *putf, unsigned int plen,unsigned *cchUnused) {
+unsigned UTF8Validated(const TCHAR *s, unsigned int len, TCHAR *putf, unsigned int plen,unsigned *cchUnused) {
   const unsigned char *sx=(unsigned char *)s,*endx=sx+len;
   unsigned char *uputf=(unsigned char *)putf,*upend=uputf+plen;
   unsigned dx;
-  wchar_t uch;
+  TCHAR uch;
   while (sx<endx) { // no need for Big/Little Endian here, and Little Endian is better code
     if (*sx < 0x80) {
       uch = *sx;
@@ -114,8 +114,10 @@ unsigned UTF8Validated(const char *s, unsigned int len, char *putf, unsigned int
     }
     sx+=dx;
   }
-  if (cchUnused) *cchUnused=endx-sx;
-  return((char *)uputf-putf);
+  if (cchUnused)
+	  *cchUnused=endx-sx;
+
+  return((TCHAR *)uputf-putf);
 }
 
 // MultiByteToWideChar(CP_UTF8,0,
@@ -173,7 +175,7 @@ unsigned int UCS2FromUTF8(const char *s, unsigned int len, wchar_t *tbufo, unsig
 // return 0 for neither
 // return 1 for ANSI
 // return 2 for UTF-8 16-bit
-int isUTF8_16(const char *s, unsigned int len,unsigned *cchUnused) {
+int isUTF8_16(const TCHAR *s, unsigned int len,unsigned *cchUnused) {
   int rv=2;
   int ASCII7only=1;
   const unsigned char *sx=(unsigned char *)s,*endx=sx+len;

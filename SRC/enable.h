@@ -22,7 +22,8 @@
    Any import functions disabled should also have their #include in the .RC file disable
    */
 #ifndef ENABLE_TIDYDLL /* This allows a -D to set this for us */
-#define ENABLE_TIDYDLL 1
+// XXX
+#define ENABLE_TIDYDLL 0
 #endif
 #define ENABLE_PUSHPOP 0
 #define ENABLE_FINDREPLACE 1

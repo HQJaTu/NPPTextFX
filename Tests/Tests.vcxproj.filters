@@ -1,0 +1,72 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\Unittests">
+      <UniqueIdentifier>{d8e06664-4c66-4ba7-84cd-10e2239b9a47}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Text FX source">
+      <UniqueIdentifier>{fc04e730-b0b3-4d8a-a471-760313bf3120}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SRC\enable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="stdafx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RoundToNextPowerTest.cpp">
+      <Filter>Source Files\Unittests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SRC\CapsTables.cpp">
+      <Filter>Source Files\Text FX source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SRC\MicroXML\MicroXML.cpp">
+      <Filter>Source Files\Text FX source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MINILZO\minilzo.cpp">
+      <Filter>Source Files\Text FX source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SRC\NPPTextFX.cpp">
+      <Filter>Source Files\Text FX source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SRC\Poppad\Popfind.cpp">
+      <Filter>Source Files\Text FX source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SRC\TransformsW.cpp">
+      <Filter>Source Files\Text FX source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SRC\Scintilla\UniConversion.cpp">
+      <Filter>Source Files\Text FX source</Filter>
+    </ClCompile>
+    <ClCompile Include="ArmReallocTest.cpp">
+      <Filter>Source Files\Unittests</Filter>
+    </ClCompile>
+    <ClCompile Include="StrnCpyArmTest.cpp">
+      <Filter>Source Files\Unittests</Filter>
+    </ClCompile>
+    <ClCompile Include="SprintfTest.cpp">
+      <Filter>Source Files\Unittests</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

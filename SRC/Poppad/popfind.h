@@ -70,8 +70,8 @@ typedef struct tagFINDREPLACEX {
   WORD         PersistentFlags;    // User selected flags that are maintained while the dialog does not exist
   WORD         StorageFlags;       // PersistentFlags are stored here when disabled from restrictions
   unsigned     InternalFlags;      // Flags that are zeroed out each time the Dialog is created
-  LPSTR        lpstrFindWhat;      // ptr. to search string, ANSI or UTF-8, always \0 terminated (length+1)
-  LPSTR        lpstrReplaceWith;   // ptr. to replace string, ANSI or UTF-8, always \0 terminated (length+1)
+  LPWSTR        lpstrFindWhat;      // ptr. to search string, ANSI or UTF-8, always \0 terminated (length+1)
+  LPWSTR        lpstrReplaceWith;   // ptr. to replace string, ANSI or UTF-8, always \0 terminated (length+1)
   size_t       wFindWhatSz;        // malloc()'d length in BYTES of find buffer size
   size_t       wFindWhatLen;       // text length in BYTES of find buffer text (excludes \0)
   size_t       wReplaceWithSz;     // malloc()'d length in BYTES of replace buffer size
@@ -84,10 +84,11 @@ typedef struct tagFINDREPLACEX {
   int cxScreen,cyScreen;           // screen size when dialog was last shown
   RECT rcDlg;                      // RECT coords when dialog was last shown (includes flag FRP_MAXIMIZED)
   int iSelIsRect;                  // stores the selection mode
-  char *szPathList;                // The list of Repository paths
-  unsigned uPathListSz,uPathListLen;
+  TCHAR *szPathList;               // The list of Repository paths
+  size_t uPathListSz;
+  size_t uPathListLen;
   unsigned uPathListSelected;      // The last szPathList selected
-  char cSequence,cCounter,cUnused1,cUnused2;
+  TCHAR cSequence,cCounter,cUnused1,cUnused2;
   struct tagREPCOUNTER *RepCounters;
   //LPVOID       *lpvUser;         // If we were implementing this as a generic control we would provide a pointer like this one for caller managed data
 } FINDREPLACEX,*LPFINDREPLACEX;
@@ -95,7 +96,7 @@ typedef struct tagFINDREPLACEX {
 EXTERNC void PopFindReplaceDlg  (HWND,HWND,HINSTANCE,CBFINDREPLACEX,BOOL);
 //EXTERNC CALLBACK PopFindReplaceCallback(unsigned,LPVOID); // return 0:preserved Dlg; 1:destroy Dlg
 EXTERNC void PopFindReplaceDlgDestroy(void);
-EXTERNC void PopFindReplaceDlgINI(BOOL fStop,/*const char *szPluginPath,*/const char *szINIPath);
+EXTERNC void PopFindReplaceDlgINI(BOOL fStop,/*const char *szPluginPath,*/const TCHAR *szINIPath);
 EXTERNC void PopFindReplaceDlgInit(BOOL fStop/*,const char *szPluginPath*/);
 
 #define SENDMSGTOED(edit,mesg,wpm,lpm) SendMessage(edit,mesg,(WPARAM)(wpm),(LPARAM)(lpm))

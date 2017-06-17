@@ -688,12 +688,12 @@ struct CharacterRange {
 
 struct TextRange {
 	struct CharacterRange chrg;
-	char *lpstrText;
+	TCHAR *lpstrText;
 };
 
 struct TextToFind {
 	struct CharacterRange chrg;
-	char *lpstrText;
+	TCHAR *lpstrText;
 	struct CharacterRange chrgText;
 };
 

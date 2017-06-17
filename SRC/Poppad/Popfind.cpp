@@ -16,7 +16,8 @@
 //#include <shlobj.h>  /* MSVC: needs shlwapi.h copied from MS Visual Studio to work */
 
 #include <stdio.h>
-//#include <tchar.h>            // for _tcsstr (strstr for Unicode & non-Unicode)
+#include <wchar.h>
+#include <tchar.h>            // for _tcsstr (strstr for Unicode & non-Unicode)
 //#include <stdlib.h>
 #include /*..*/"capstables.h"
 #include /*..*/"PluginInterface.h"
@@ -27,6 +28,7 @@
 #endif
 
 #include "popfind.h"
+
 #include /*..*/"NPPTextFX.h"
 #include /*..*/"Scintilla.h"
 #include /*..*/"Scintilla/UniConversion.h"
@@ -78,7 +80,8 @@ static const char *g_tszRegex[]={
   "Replace Tag Region: \\1"
 };
 
-static char g_szTitle[MAX_PATH],g_szFile[MAX_PATH],g_szLastLoadedFile[MAX_PATH],g_szInit[MAX_PATH];
+static TCHAR g_szLastLoadedFile[MAX_PATH];
+static TCHAR g_szTitle[MAX_PATH], g_szFile[MAX_PATH], g_szInit[MAX_PATH];
 static OPENFILENAME g_ofn={
      /*lStructSize       =*/ sizeof (OPENFILENAME),
      /*hwndOwner         =*/ NULL , // Set in Open and Close functions
@@ -152,26 +155,29 @@ static void CheckFlags(HWND hDlg,FINDREPLACEX *pfr) {
 }
 
 static BOOL SetWindowTextFree(HWND hWnd,TCHAR *lpText) {
-  BOOL rv=SetWindowText(hWnd,lpText?lpText:"a memory problem occured");
-  if (lpText) freesafe(lpText,"SetWindowTextFree");
+  BOOL rv=SetWindowText(hWnd, lpText ? lpText : _T("a memory problem occured"));
+  if (lpText)
+	  freesafe(lpText, _T("SetWindowTextFree"));
+
   return(rv);
 }
 
-static void GetWindowTextUTF8arm(HWND hwndEditor,HWND hwndControl,char **ppBufA,size_t *puBufsz,size_t *puBufLenA) {
+static void GetWindowTextUTF8arm(HWND hwndEditor, HWND hwndControl, TCHAR **ppBufA, size_t *puBufsz, size_t *puBufLenA) {
   if (hwndEditor) {
     int iEolMode=SENDMSGTOED(hwndEditor, SCI_GETEOLMODE, 0, 0);
     SENDMSGTOED(hwndControl, SCI_SETEOLMODE, iEolMode, 0);
     SENDMSGTOED(hwndControl, SCI_CONVERTEOLS, iEolMode, 0);
   }
   size_t uBufLenA=SENDMSGTOED(hwndControl, SCI_GETLENGTH, 0, 0)+1;
-  armreallocsafe(ppBufA,puBufsz,uBufLenA,ARMSTRATEGY_MAINTAIN,0,"strdupGetWindowText");
-  if (*ppBufA) *puBufLenA=SENDMSGTOED(hwndControl, SCI_GETTEXT, uBufLenA, *ppBufA);
+  armreallocsafe(ppBufA, puBufsz, CHARSIZE(uBufLenA), ARMSTRATEGY_MAINTAIN, 0, _T("strdupGetWindowText"));
+  if (*ppBufA)
+	  *puBufLenA=SENDMSGTOED(hwndControl, SCI_GETTEXT, uBufLenA, *ppBufA);
 }
 
 #ifndef SCMOD_NORM
 #define SCMOD_NORM 0
 #endif
-static void SetWindowTextUTF8(FINDREPLACEX *pfr,HWND hwndControl,char *pBufA,size_t uBufLenA,int iCodePage) {
+static void SetWindowTextUTF8(FINDREPLACEX *pfr,HWND hwndControl,TCHAR *pBufA,size_t uBufLenA,int iCodePage) {
   SENDMSGTOED(hwndControl,SCI_SETUNDOCOLLECTION,FALSE,0);
   SENDMSGTOED(hwndControl,SCI_EMPTYUNDOBUFFER,0,0);
   SENDMSGTOED(hwndControl,SCI_CLEARALL,0,0);
@@ -208,19 +214,19 @@ inline void SetCurselOptional(HWND hwndCB,int iIndex) {
 #define FHFLAG_UNICODE FRI_UNICODE
 static struct _FINDHIST {
   unsigned uCount; /* Count of buffers & lengths */
-  char **pszBuf; /* List of buffers, always zero terminated 1+ length */
+  TCHAR **pszBuf; /* List of buffers, always zero terminated 1+ length */
   unsigned *puBufLen; /* List of buffer lengths */
   USHORT *fFlags; /* List of flags */
 } g_FindHist,g_ReplHist;
 
 #define HISTORYLIMIT 30
-static void HistoryLoadStrings(struct _FINDHIST *pHist,HWND hwndCB,LPCSTR szTitle) {
-  COMBOBOXEXITEMA cbiA;
+static void HistoryLoadStrings(struct _FINDHIST *pHist,HWND hwndCB,LPWSTR szTitle) {
+  tagCOMBOBOXEXITEMW cbiA;
   memset(&cbiA,0,sizeof(cbiA));
   //ShowWindow(hwndCB,SW_HIDE); // WM_PAINT once instead of HISTORYLIMIT times
   SENDMSGTOED(hwndCB,WM_SETREDRAW,FALSE,0);
   SENDMSGTOED(hwndCB,CB_RESETCONTENT,0,0);
-  char *szTitleEx=smprintf("%s history",szTitle);
+  TCHAR *szTitleEx=smprintf(_T("%s history"),szTitle);
   if (szTitleEx) {
     if (g_fISNT) {
       cbiA.mask=CBEIF_TEXT;
@@ -228,31 +234,38 @@ static void HistoryLoadStrings(struct _FINDHIST *pHist,HWND hwndCB,LPCSTR szTitl
       cbiA.pszText=szTitleEx;
       SENDMSGTOED(hwndCB,CBEM_INSERTITEM,0,&cbiA);
     } else SENDMSGTOED(hwndCB,CB_ADDSTRING,0,szTitleEx);
-    freesafe(szTitleEx,"HistoryLoadStrings");
+    freesafe(szTitleEx, _T("HistoryLoadStrings"));
   }
   if (pHist->uCount) {
     unsigned i; for(i=0; i<pHist->uCount; i++) {
       if (g_fISNT && (pHist->fFlags[i]&FHFLAG_UNICODE)) {
         COMBOBOXEXITEMW cbiW;
         memset(&cbiW,0,sizeof(cbiW));
+#ifdef UNICODE
+		TCHAR szBufW[24], szBufW2[24];
+		wcsncpy(szBufW2, pHist->pszBuf[i], pHist->puBufLen[i]);
+		szBufW2[NELEM(szBufW2) - 1] = _T('\0');
+		snwprintf(szBufW, NELEM(szBufW), _T("%2uw: %s"), i + 1, szBufW2);
+#else
         wchar_t szBufW[24],szBufW2[24];
         UCS2FromUTF8(pHist->pszBuf[i],pHist->puBufLen[i],szBufW2,NELEM(szBufW2),FALSE,NULL);
-        szBufW2[NELEM(szBufW2)-1]=L'\0';
-        snwprintf(szBufW,NELEM(szBufW),L"%2uw: %s",i+1,szBufW2);
+        szBufW2[NELEM(szBufW2)-1]= _T('\0');
+        snwprintf(szBufW,NELEM(szBufW), _T("%2uw: %s"), i+1,szBufW2);
+#endif
         cbiW.mask=CBEIF_TEXT;
         cbiW.iItem=-1;
         cbiW.pszText=szBufW;
         SENDMSGTOED(hwndCB,CBEM_INSERTITEMW,0,&cbiW);
       } else {
-        char szBuf[24];
+        TCHAR szBuf[24];
         if (g_fISNT) {
-          snprintfX(szBuf,sizeof(szBuf),"%2ua: %s",i+1,pHist->pszBuf[i]);
+          snprintfX(szBuf,sizeof(szBuf), _T("%2ua: %s"), i+1,pHist->pszBuf[i]);
           cbiA.mask=CBEIF_TEXT;
           cbiA.iItem=-1;
           cbiA.pszText=szBuf;
           SENDMSGTOED(hwndCB,CBEM_INSERTITEMA,0,&cbiA);
         } else {
-          snprintfX(szBuf,sizeof(szBuf),"%2u: %s",i+1,pHist->pszBuf[i]);
+          snprintfX(szBuf,sizeof(szBuf), _T("%2u: %s"), i+1,pHist->pszBuf[i]);
           SENDMSGTOED(hwndCB,CB_ADDSTRING,0,szBuf);
         }
       }
@@ -272,7 +285,7 @@ static void RepositoryLoadStrings(FINDREPLACEX *pfr,HWND hwndCB) {
   SENDMSGTOED(hwndCB,CB_RESETCONTENT,0,0);
   unsigned uCt=0;
   if (pfr->uPathListLen) {
-    char *psTail=pfr->szPathList,*psEnd=psTail+pfr->uPathListLen,*psHead; psTail--;
+    TCHAR *psTail=pfr->szPathList,*psEnd=psTail+pfr->uPathListLen,*psHead; psTail--;
     do {
       psTail=memchrX(psHead=psTail+1,psEnd,';');
       if (*psTail) {
@@ -295,18 +308,22 @@ static void HistoryInit(struct _FINDHIST *pHist,BOOL stop) {
   if (stop) {
     if (pHist->pszBuf) {
       if (pHist->uCount) {
-        unsigned i; for(i=pHist->uCount; i--; ) freesafe(pHist->pszBuf[i],"HistoryInit");
+        unsigned i;
+		for(i=pHist->uCount; i--; )
+			freesafe(pHist->pszBuf[i], _T("HistoryInit"));
       }
-      freesafe(pHist->pszBuf,"HistoryInit");
+      freesafe(pHist->pszBuf, _T("HistoryInit"));
     }
-    if (pHist->puBufLen) freesafe(pHist->puBufLen,"HistoryInit");
-    if (pHist->fFlags) freesafe(pHist->fFlags,"HistoryInit");
+    if (pHist->puBufLen)
+		freesafe(pHist->puBufLen, _T("HistoryInit"));
+    if (pHist->fFlags)
+		freesafe(pHist->fFlags, _T("HistoryInit"));
   }
   memset(pHist,0,sizeof(*pHist));
 }
 
 // uBufLen includes a \0
-static void HistoryAddString(struct _FINDHIST *pHist,HWND hwndCB,char *sBuf,unsigned uBufLen,USHORT fFlags,LPCSTR szTitle) {
+static void HistoryAddString(struct _FINDHIST *pHist,HWND hwndCB,TCHAR *sBuf,unsigned uBufLen,USHORT fFlags,LPWSTR szTitle) {
   if (uBufLen>1) {
     unsigned uCount=pHist->uCount;
     if (uCount) {
@@ -318,23 +335,23 @@ static void HistoryAddString(struct _FINDHIST *pHist,HWND hwndCB,char *sBuf,unsi
     }
     if (uCount>=HISTORYLIMIT) {
       uCount--;
-      freesafe(pHist->pszBuf[uCount],"HistoryAddString");
+      freesafe(pHist->pszBuf[uCount], _T("HistoryAddString"));
       goto copytoend;
     }
-    pHist->pszBuf=(char **)reallocsafeNULL(pHist->pszBuf,(uCount+1)*sizeof(*pHist->pszBuf),"HistoryAddString");
-    pHist->puBufLen=(unsigned *)reallocsafeNULL(pHist->puBufLen,(uCount+1)*sizeof(*pHist->puBufLen),"HistoryAddString");
-    pHist->fFlags=(WORD *)reallocsafeNULL(pHist->fFlags,(uCount+1)*sizeof(*pHist->fFlags),"HistoryAddString");
+    pHist->pszBuf=(TCHAR **)reallocsafeNULL(pHist->pszBuf, (uCount+1)*sizeof(*pHist->pszBuf), _T("HistoryAddString"));
+    pHist->puBufLen=(unsigned *)reallocsafeNULL(pHist->puBufLen, (uCount+1)*sizeof(*pHist->puBufLen), _T("HistoryAddString"));
+    pHist->fFlags=(WORD *)reallocsafeNULL(pHist->fFlags, (uCount+1)*sizeof(*pHist->fFlags), _T("HistoryAddString"));
     if (pHist->pszBuf && pHist->puBufLen && pHist->fFlags) {
       pHist->uCount++;
 copytoend:
-      pHist->pszBuf[uCount]=memdupsafe(sBuf,uBufLen,"HistoryAddString");
+      pHist->pszBuf[uCount]=memdupsafe(sBuf,uBufLen, _T("HistoryAddString"));
       pHist->puBufLen[uCount]=uBufLen;
       pHist->fFlags[uCount]=fFlags;
 movetostart: // Move 0-based:uCount to the 0th position
       if (uCount>=1 && pHist->uCount>1) {
         unsigned uTempFlag=pHist->fFlags[uCount];
         unsigned uTempLen=pHist->puBufLen[uCount];
-        char *szTemp=pHist->pszBuf[uCount];
+        TCHAR *szTemp=pHist->pszBuf[uCount];
         memmove(pHist->pszBuf+1,pHist->pszBuf,uCount*sizeof(*pHist->pszBuf));
         memmove(pHist->puBufLen+1,pHist->puBufLen,uCount*sizeof(*pHist->puBufLen));
         memmove(pHist->fFlags+1,pHist->fFlags,uCount*sizeof(*pHist->fFlags));
@@ -352,7 +369,7 @@ static BOOL ReplaceCheck(HWND hDlg,FINDREPLACEX *pfr) {
       if (!pfr->lpstrReplaceWith || (pfr->InternalFlags&FRI_DIRTYREPLACE)) {
         GetWindowTextUTF8arm(pfr->hwndEditor,GetDlgItem(hDlg,IDC_EDTREPLACE),&pfr->lpstrReplaceWith,&pfr->wReplaceWithSz,&pfr->wReplaceWithLen); if (!pfr->lpstrReplaceWith) return FALSE;
         pfr->InternalFlags&=~FRI_DIRTYREPLACE; //MessageBox(hDlg,"Replace updated","???",MB_ICONSTOP);
-        HistoryAddString(&g_ReplHist,GetDlgItem(hDlg,g_fISNT?IDC_CMBREPLHISTW:IDC_CMBREPLHISTA),pfr->lpstrReplaceWith,pfr->wReplaceWithLen+1,pfr->InternalFlags&FHFLAG_UNICODE,"Replace");
+        HistoryAddString(&g_ReplHist,GetDlgItem(hDlg,g_fISNT?IDC_CMBREPLHISTW:IDC_CMBREPLHISTA),pfr->lpstrReplaceWith,pfr->wReplaceWithLen+1,pfr->InternalFlags&FHFLAG_UNICODE, _T("Replace"));
       }
       return TRUE;
 }
@@ -372,7 +389,7 @@ static BOOL FindCheck(HWND hDlg,FINDREPLACEX *pfr) {
       if (!pfr->lpstrFindWhat || (pfr->InternalFlags&FRI_DIRTYFIND)) {
         GetWindowTextUTF8arm(pfr->hwndEditor,GetDlgItem(hDlg,IDC_EDTFIND),&pfr->lpstrFindWhat,&pfr->wFindWhatSz,&pfr->wFindWhatLen); if (!pfr->lpstrFindWhat) return FALSE;
         pfr->InternalFlags&=~FRI_DIRTYFIND; //MessageBox(hDlg,"Find updated","???",MB_ICONSTOP);
-        HistoryAddString(&g_FindHist,GetDlgItem(hDlg,g_fISNT?IDC_CMBFINDHISTW:IDC_CMBFINDHISTA),pfr->lpstrFindWhat,pfr->wFindWhatLen+1,pfr->InternalFlags&FHFLAG_UNICODE,"Find");
+        HistoryAddString(&g_FindHist,GetDlgItem(hDlg,g_fISNT?IDC_CMBFINDHISTW:IDC_CMBFINDHISTA),pfr->lpstrFindWhat,pfr->wFindWhatLen+1,pfr->InternalFlags&FHFLAG_UNICODE, _T("Find"));
         pfr->InternalFlags|=FRI_NOTFOUND;
         EnableFindButtons(pfr,hDlg,pfr->wFindWhatLen?TRUE:FALSE);
       }
@@ -407,8 +424,8 @@ static void ApplyChecks(HWND hDlg,FINDREPLACEX *pfr) {
 
 // szFolder is a known folder and we need to ensure that it ends in a slash if there's enough room
 // the new length is returned
-static unsigned FolderPadSlash(char *szFolder,unsigned uFolderSz,unsigned uFolderLen) {
-  if (uFolderLen==(unsigned)-1) uFolderLen=strlen(szFolder);
+static unsigned FolderPadSlash(TCHAR *szFolder,unsigned uFolderSz,unsigned uFolderLen) {
+  if (uFolderLen==(unsigned)-1) uFolderLen=wcslen(szFolder);
   if (uFolderSz && uFolderLen<uFolderSz-1) {
       if (!uFolderLen || szFolder[uFolderLen-1]!='\\') szFolder[uFolderLen++]='\\';
       szFolder[uFolderLen]='\0';
@@ -418,16 +435,16 @@ static unsigned FolderPadSlash(char *szFolder,unsigned uFolderSz,unsigned uFolde
 
 // duplicates the folder portion of szPathSrc into szPathDst, overwriting an existing path if necessary
 // the new length of szPathDst is returned, or (unsigned)-1 if failed. Notice -1 forces the next call to calculate strlen() so it's only extra work, not an invalid length
-static unsigned PathDup(char *szPathDst,unsigned uPathDstSz,unsigned uPathDstLen,const char *szPathSrc,unsigned uPathSrcLen) {
-  if (uPathSrcLen==(unsigned)-1) uPathSrcLen=strlen(szPathSrc);
-  if (uPathDstLen==(unsigned)-1) uPathDstLen=strlen(szPathDst);
+static unsigned PathDup(TCHAR *szPathDst,unsigned uPathDstSz,unsigned uPathDstLen,const TCHAR *szPathSrc,unsigned uPathSrcLen) {
+  if (uPathSrcLen==(unsigned)-1) uPathSrcLen=wcslen(szPathSrc);
+  if (uPathDstLen==(unsigned)-1) uPathDstLen=wcslen(szPathDst);
   if (uPathSrcLen && uPathDstSz) {
     unsigned uFolderSrcLen;
-    uFolderSrcLen=(const char *)memchrX(szPathSrc+uPathSrcLen-1,szPathSrc-1,'\\')-szPathSrc+1;
+    uFolderSrcLen=(const TCHAR *)memchrX(szPathSrc+uPathSrcLen-1,szPathSrc-1,'\\')-szPathSrc+1;
     if (uFolderSrcLen) {
       unsigned uFolderDstLen;
       int iDif;
-      uFolderDstLen=(const char *)memchrX(szPathDst+uPathDstLen-1,szPathDst-1,'\\')-szPathDst+1;
+      uFolderDstLen=(const TCHAR *)memchrX(szPathDst+uPathDstLen-1,szPathDst-1,'\\')-szPathDst+1;
       iDif=uFolderSrcLen-uFolderDstLen;
       if (uPathDstLen + iDif <= uPathDstSz-1) {
         if (iDif) memmove(szPathDst+uFolderDstLen+iDif,szPathDst+uFolderDstLen,uPathDstLen-uFolderDstLen+1);
@@ -459,10 +476,14 @@ static unsigned PathDel(char *szPathDst,unsigned uPathDstLen) {
 static void DirManage(HWND hwndFolders,WORD wFunc) {
   unsigned uCursel=SENDMSGTOED(hwndFolders,CB_GETCURSEL,0,0);
   unsigned uTextSz=SENDMSGTOED(hwndFolders,CB_GETLBTEXTLEN,uCursel,0)+1;  // 1 byte for \0
-  char *szBuf=(char *)mallocsafe(uTextSz,"DirManage"); if (!szBuf) return;
-  char *szEnd = szBuf+SENDMSGTOED(hwndFolders,CB_GETLBTEXT,uCursel,szBuf);
-  char *szFolder=szBuf;
-  szFolder=memchrX(szFolder,szEnd,':'); if (szFolder>=szEnd) szFolder=szBuf; else szFolder++;
+  TCHAR *szBuf=(TCHAR *)mallocsafe(uTextSz, _T("DirManage"));
+  if (!szBuf)
+	  return;
+  TCHAR *szEnd = szBuf+SENDMSGTOED(hwndFolders,CB_GETLBTEXT,uCursel,szBuf);
+  TCHAR *szFolder=szBuf;
+  szFolder=memchrX(szFolder,szEnd,':');
+  if (szFolder>=szEnd) szFolder=szBuf;
+  else szFolder++;
   while(szFolder<szEnd && isspace(*szFolder)) szFolder++;
   g_szFile[0]='\0'; //MessageBox(0,szFolder,g_szLastLoadedFile,MB_OK);
   g_szInit[0]='\0';
@@ -474,7 +495,7 @@ static void DirManage(HWND hwndFolders,WORD wFunc) {
   } else {
     strncpymem(g_szFile,NELEM(g_szFile),g_szLastLoadedFile,(unsigned)-1);
   }
-  freesafe(szBuf,"DirManage");
+  freesafe(szBuf, _T("DirManage"));
 }
 
 static struct _ECHILD {
@@ -484,7 +505,7 @@ static struct _ECHILD {
 
 static BOOL CALLBACK EnumChildProc(HWND hwndChild,LPARAM lParam) {
   struct _ECHILD *pec=(struct _ECHILD *)lParam;
-  pec->hwndChildren=(HWND *)reallocsafeNULL(pec->hwndChildren,sizeof(*pec->hwndChildren)*(pec->cChildren+1),"EnumChildProc");
+  pec->hwndChildren=(HWND *)reallocsafeNULL(pec->hwndChildren, sizeof(*pec->hwndChildren)*(pec->cChildren+1), _T("EnumChildProc"));
   if (pec->hwndChildren) {
     pec->hwndChildren[pec->cChildren]=hwndChild;
     pec->cChildren++;
@@ -522,12 +543,12 @@ static BOOL MoveWindowNoFlicker(HWND hwnd,int X,int Y,int nWidth,int nHeight,REC
 #endif
 
 static void SetWindowCharacter(HWND hwnd,char c) {
-  char szText[3];
+  TCHAR szText[3];
   switch(c) {
   case 0: szText[0]='\0'; break;
   case '\n':
   case '\r':
-    strcpy(szText,"\\n");
+    wcscpy(szText, _T("\\n"));
     break;
   default:
     szText[0]=c;
@@ -539,7 +560,7 @@ static void SetWindowCharacter(HWND hwnd,char c) {
 }
 
 static char GetWindowCharacter(HWND hwnd) {
-  char szText[3];
+  TCHAR szText[3];
   unsigned uTextLen=GetWindowText(hwnd,szText,sizeof(szText));
   if (uTextLen==1) return szText[0];
   else if (uTextLen==2 && szText[0]=='\\') switch(szText[1]) {
@@ -585,7 +606,7 @@ static void UICenterDialog(LPFINDREPLACEX pfr) {
 // this DlgProc is substantially less buggy than Windows own for FindText/ReplaceText
 // In here we try to minimize editor specific stuff and only perform things that apply generally to F&R dialogs.
 // Editor specific stuff goes into cbFindReplaceX. This separation will help both routines to be more readable.
-static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, LPARAM lParam) {
+static INT_PTR CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, LPARAM lParam) {
   static FINDREPLACEX *pfr=NULL; // not thread safe but fairly easy to fix with a storage stack
   static unsigned cyClientHeight,cyOrigWindowHeight;
 
@@ -606,8 +627,8 @@ static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, L
       ShowWindow(GetDlgItem(hDlg,IDC_CMBFINDHISTW),g_fISNT?SW_SHOW:SW_HIDE); //so Win9x users don't get to see their UNICODE
       ShowWindow(GetDlgItem(hDlg,IDC_CMBREPLHISTA),g_fISNT?SW_HIDE:SW_SHOW);
       ShowWindow(GetDlgItem(hDlg,IDC_CMBREPLHISTW),g_fISNT?SW_SHOW:SW_HIDE);
-      HistoryLoadStrings(&g_FindHist,GetDlgItem(hDlg,g_fISNT?IDC_CMBFINDHISTW:IDC_CMBFINDHISTA),"Find");
-      HistoryLoadStrings(&g_ReplHist,GetDlgItem(hDlg,g_fISNT?IDC_CMBREPLHISTW:IDC_CMBREPLHISTA),"Replace");
+      HistoryLoadStrings(&g_FindHist,GetDlgItem(hDlg,g_fISNT?IDC_CMBFINDHISTW:IDC_CMBFINDHISTA), _T("Find"));
+      HistoryLoadStrings(&g_ReplHist,GetDlgItem(hDlg,g_fISNT?IDC_CMBREPLHISTW:IDC_CMBREPLHISTA), _T("Replace"));
       RepositoryLoadStrings(pfr,GetDlgItem(hDlg,IDC_CMBFOLDERS));
       EnableFindButtons(pfr,hDlg,pfr->wFindWhatLen?TRUE:FALSE);
       EnableReplaceButtons(hDlg,pfr->wReplaceWithLen?TRUE:FALSE);
@@ -633,7 +654,7 @@ static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, L
       SetForegroundWindow(pfr->hwndOwner);
       pfr=NULL;
     }
-    if (g_ec.hwndChildren) freesafe(g_ec.hwndChildren,"FindReplaceDlgProc:WM_DESTROY");
+    if (g_ec.hwndChildren) freesafe(g_ec.hwndChildren, _T("FindReplaceDlgProc:WM_DESTROY"));
     break;
   case WM_NOTIFY:
     switch (wParam) {
@@ -726,7 +747,7 @@ static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, L
     case IDC_EDTCOUNTER:
       if (HIWORD(wParam)==EN_CHANGE) {
         pfr->cCounter=GetWindowCharacter((HWND)lParam);
-        SetWindowTextFree(GetDlgItem(hDlg,stc1),smprintf(pfr->cCounter?"Counter usage: %c(id,start,increment,width)":"",pfr->cCounter));
+        SetWindowTextFree(GetDlgItem(hDlg,stc1),smprintf(pfr->cCounter ? _T("Counter usage: %c(id,start,increment,width)"): _T(""), pfr->cCounter));
         return TRUE;
       }
       break ;
@@ -771,10 +792,16 @@ static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, L
               case 23:
                 PROCESSCHECK(IDC_CHXRECURSIVE,pfr->PersistentFlags,pfr->StorageFlags,FRP_RECURSIVE,FALSE,"RecursiveReplace",16);
                 else PROCESSCHECK(IDC_CHXREPLCASE,pfr->PersistentFlags,pfr->StorageFlags,FRP_REPLCASE,FALSE,"ReplaceMatchCase",16);
-                else if (!memicmp(mx.sAttribute,"option:CounterCharacter",23)) {if (mx.uValueConvertedLen) SetWindowCharacter(GetDlgItem(hDlg,IDC_EDTCOUNTER),pfr->cCounter=mx.sValueConverted[0]); mx.iUsed=TRUE; }
+                else if (!memicmp(mx.sAttribute,"option:CounterCharacter",23)) {
+					if (mx.uValueConvertedLen) SetWindowCharacter(GetDlgItem(hDlg,IDC_EDTCOUNTER),pfr->cCounter=mx.sValueConverted[0]);
+					mx.iUsed=TRUE;
+				}
                 break;
               case 24:
-                if (!memicmp(mx.sAttribute,"option:SequenceCharacter",24)) {if (mx.uValueConvertedLen) SetWindowCharacter(GetDlgItem(hDlg,IDC_EDTSEQUENCE),pfr->cSequence=mx.sValueConverted[0]); mx.iUsed=TRUE; }
+                if (!memicmp(mx.sAttribute,"option:SequenceCharacter",24)) {
+					if (mx.uValueConvertedLen) SetWindowCharacter(GetDlgItem(hDlg,IDC_EDTSEQUENCE),pfr->cSequence=mx.sValueConverted[0]);
+					mx.iUsed=TRUE;
+				}
               }
               break;
 #undef PROCESSCHECK
@@ -783,7 +810,7 @@ static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, L
               switch(mx.uValueLen) {
               case 8: if (!memicmp(mx.sValue,"FindText",8)) while((iXMLRead=XMLReadLevel(&mx,2,iXMLRead))>MX_DOWNLIMIT) switch(iXMLRead) {
                 case MX_TEXT: {
-                    char *sStart,*sEnd;
+                    TCHAR *sStart,*sEnd;
                     sStart=memchrX(mx.sValueConverted,mx.sValueConverted+mx.uValueConvertedLen,'/');
                     sEnd=memchrX(mx.sValueConverted+mx.uValueConvertedLen-1,sStart-1,'/');
                     sStart++;
@@ -795,7 +822,7 @@ static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, L
                 break;
               case 10: if (!memicmp(mx.sValue,"EditorText",10)) while((iXMLRead=XMLReadLevel(&mx,2,iXMLRead))>MX_DOWNLIMIT) switch(iXMLRead) {
                 case MX_TEXT: {
-                    char *sStart,*sEnd;
+					TCHAR *sStart,*sEnd;
                     sStart=memchrX(mx.sValueConverted,mx.sValueConverted+mx.uValueConvertedLen,'/');
                     sEnd=memchrX(mx.sValueConverted+mx.uValueConvertedLen-1,sStart-1,'/');
                     sStart++;
@@ -809,7 +836,7 @@ static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, L
                 }
               case 11: if (!memicmp(mx.sValue,"ReplaceText",11)) while((iXMLRead=XMLReadLevel(&mx,2,iXMLRead))>MX_DOWNLIMIT) switch(iXMLRead) {
                 case MX_TEXT: {
-                    char *sStart,*sEnd;
+					TCHAR *sStart,*sEnd;
                     sStart=memchrX(mx.sValueConverted,mx.sValueConverted+mx.uValueConvertedLen,'/');
                     sEnd=memchrX(mx.sValueConverted+mx.uValueConvertedLen-1,sStart-1,'/');
                     sStart++;
@@ -824,10 +851,10 @@ static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, L
             }
             break;
           case MX_COMMENT: if (mx.uValueLen>4) { // --?--
-              char *sStart,*sEnd;
+			  TCHAR *sStart,*sEnd;
               sEnd  =mx.sValue+mx.uValueLen;
-              sStart=memstr(mx.sValue,sEnd,"--",2)+2;
-              sEnd  =memstr(sEnd-1,mx.sValue-1,"--",2);
+              sStart=memstr(mx.sValue,sEnd, _T("--"), 2) + 2;
+              sEnd  =memstr(sEnd-1,mx.sValue-1, _T("--"), 2);
               if (sStart<sEnd) {
                 *sEnd='\0';
                 SetWindowText(GetDlgItem(hDlg,stc1),sStart);
@@ -836,7 +863,8 @@ static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, L
             mx.iUsed=TRUE;
             break;
           }
-          if (iXMLRead!=MX_DONE) MessageBoxFree(0/*pfr->hwndSelf*/,smprintf(TEXT("Failure: [%u]%s"),mx.sValue,mx.uValueLen),TEXT("Find & Replace"),MB_OK);
+          if (iXMLRead!=MX_DONE)
+			  MessageBoxFree(0/*pfr->hwndSelf*/,smprintf(TEXT("Failure: [%u]%s"),mx.sValue,mx.uValueLen),TEXT("Find & Replace"),MB_OK);
           XMLReadClose(&mx);
           ApplyChecks(hDlg,pfr);
           strncpymem(g_szLastLoadedFile,NELEM(g_szLastLoadedFile),g_ofn.lpstrFile,(unsigned)-1);
@@ -851,62 +879,66 @@ static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, L
       g_ofn.Flags             = OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
       DirManage(GetDlgItem(hDlg,IDC_CMBFOLDERS),LOWORD(wParam));
       if (ReplaceCheck(hDlg,pfr) && FindCheck(hDlg,pfr) && GetSaveFileName(&g_ofn)) {
-        char *sComment=NULL;
+        TCHAR *sComment=NULL;
         unsigned uComment=(unsigned)-1;
         struct MICROXML mx;
         if (XMLReadOpen(&mx,g_ofn.lpstrFile,O_RDONLY,O_DENYWRITE)) { // preserve existing comment
           if (MX_COMMENT==XMLReadLevel(&mx,0,0)) {
-              char *sStart,*sEnd;
-              sEnd  =mx.sValue+mx.uValueLen;
-              sStart=memstr(mx.sValue,sEnd,"--",2)+2;
-              sEnd  =memstr(sEnd-1,mx.sValue-1,"--",2);
-              if (sStart<sEnd) sComment=memdupsafe(mx.sValue,uComment=mx.uValueLen,"IDC_PSHSAVE");
+              TCHAR *sStart,*sEnd;
+              sEnd  =mx.sValue + mx.uValueLen;
+              sStart=memstr(mx.sValue, sEnd, _T("--"), 2) + 2;
+              sEnd  =memstr(sEnd-1, mx.sValue-1, _T("--"), 2);
+              if (sStart<sEnd)
+				  sComment=memdupsafe(mx.sValue, uComment=mx.uValueLen, _T("IDC_PSHSAVE"));
           }
           XMLReadClose(&mx);
         }
-        HANDLE hFile=XMLWriteCreat(g_ofn.lpstrFile,"1.0",(pfr->InternalFlags&FRI_UNICODE)?"UTF-8":"Windows-1252");
+        HANDLE hFile=XMLWriteCreat(g_ofn.lpstrFile, _T("1.0"), (pfr->InternalFlags&FRI_UNICODE) ? _T("UTF-8") : _T("Windows-1252"));
         if (INVALID_HANDLE_VALUE!=hFile) {
-          XMLWriteComment(hFile,0,sComment?sComment:"--Set Loaded--",uComment);
-          XMLWriteLevelUp(hFile,0,"TextFX:Replace",(unsigned)-1);
-#define PROCESSCHECK3(cs,flg,sflg,bt,ck,nm,ln) XMLWriteAttribute(hFile,"option:"nm,(unsigned)-1,(flg&bt)?"1":"0",1,'"');
+          XMLWriteComment(hFile, 0, sComment? sComment : _T("--Set Loaded--"), uComment);
+          XMLWriteLevelUp(hFile, 0, _T("TextFX:Replace"), (unsigned)-1);
+#define PROCESSCHECK3(cs,flg,sflg,bt,ck,nm,ln) XMLWriteAttribute(hFile, _T("option:")nm,(unsigned)-1,(flg&bt) ? _T("1") : _T("0"), 1, '"');
 #define PROCESSCHECK PROCESSCHECK3
           PROCESSCHECKSA /* Used here to generate XML option list */
 #undef PROCESSCHECK
-          char st[2];
+          TCHAR st[2];
           st[1]='\0';
           st[0]=ValidateWindowCharacter(GetDlgItem(hDlg,IDC_EDTSEQUENCE));
-          XMLWriteAttribute(hFile,"option:SequenceCharacter",(unsigned)-1,st,(unsigned)-1,'"');
+          XMLWriteAttribute(hFile, _T("option:SequenceCharacter"),(unsigned)-1, st, (unsigned)-1,'"');
           st[0]=ValidateWindowCharacter(GetDlgItem(hDlg,IDC_EDTCOUNTER));
-          XMLWriteAttribute(hFile,"option:CounterCharacter",(unsigned)-1,st,(unsigned)-1,'"');
-          XMLWriteText(hFile,"",0,NULL);
-          XMLWriteLevelUp(hFile,1,"FindText",(unsigned)-1);
-          XMLWriteText(hFile,pfr->lpstrFindWhat,pfr->wFindWhatLen,"/"); // does this / mimic vi?
-          XMLWriteLevelDownSame(hFile,"FindText",(unsigned)-1);
-          XMLWriteLevelUp(hFile,1,"ReplaceText",(unsigned)-1);
-          XMLWriteText(hFile,pfr->lpstrReplaceWith,pfr->wReplaceWithLen,"/");
-          XMLWriteLevelDownSame(hFile,"ReplaceText",(unsigned)-1);
+          XMLWriteAttribute(hFile, _T("option:CounterCharacter"), (unsigned)-1, st, (unsigned)-1,'"');
+          XMLWriteText(hFile, _T(""), 0, NULL);
+          XMLWriteLevelUp(hFile,1, _T("FindText"), (unsigned)-1);
+          XMLWriteText(hFile,pfr->lpstrFindWhat,pfr->wFindWhatLen, _T("/")); // does this / mimic vi?
+          XMLWriteLevelDownSame(hFile, _T("FindText"), (unsigned)-1);
+          XMLWriteLevelUp(hFile, 1, _T("ReplaceText"), (unsigned)-1);
+          XMLWriteText(hFile,pfr->lpstrReplaceWith,pfr->wReplaceWithLen, _T("/"));
+          XMLWriteLevelDownSame(hFile, _T("ReplaceText"), (unsigned)-1);
           XMLWriteLevelDown(hFile,0);
-          XMLWriteLevelDownSame(hFile,"TextFX:Replace",(unsigned)-1);
+          XMLWriteLevelDownSame(hFile, _T("TextFX:Replace"), (unsigned)-1);
           XMLWriteClose(hFile);
         }
-        if (sComment) freesafe(sComment,"IDC_PSHSAVE");
+        if (sComment)
+			freesafe(sComment, _T("IDC_PSHSAVE"));
       }
 #else
       SetWindowTextA(GetDlgItem(hDlg,stc1),"This key doesn't work yet!");
 #endif
       break;
     case IDC_PSHSWAP: {
-        char *szBufRepl=NULL; unsigned uBufReplSz=0,uBufReplLen;
-        GetWindowTextUTF8arm(NULL,GetDlgItem(hDlg,IDC_EDTREPLACE),&szBufRepl,&uBufReplSz,&uBufReplLen); if (!szBufRepl) break;
-        char *szBufFind=NULL; unsigned uBufFindSz=0,uBufFindLen;
-        GetWindowTextUTF8arm(NULL,GetDlgItem(hDlg,IDC_EDTFIND),&szBufFind,&uBufFindSz,&uBufFindLen);
+        TCHAR *szBufRepl=NULL;
+		unsigned uBufReplSz=0,uBufReplLen;
+        GetWindowTextUTF8arm(NULL,GetDlgItem(hDlg,IDC_EDTREPLACE),&szBufRepl, (size_t*)&uBufReplSz, (size_t*)&uBufReplLen); if (!szBufRepl) break;
+        TCHAR *szBufFind=NULL;
+		unsigned uBufFindSz=0,uBufFindLen;
+        GetWindowTextUTF8arm(NULL,GetDlgItem(hDlg,IDC_EDTFIND),&szBufFind, (size_t*)&uBufFindSz, (size_t*)&uBufFindLen);
         if (szBufFind) {
           SetWindowTextUTF8(pfr,GetDlgItem(hDlg,IDC_EDTFIND),szBufRepl,uBufReplLen,-1);
           SetWindowTextUTF8(pfr,GetDlgItem(hDlg,IDC_EDTREPLACE),szBufFind,uBufFindLen,-1);
           pfr->InternalFlags|=(FRI_DIRTYREPLACE|FRI_DIRTYFIND);
-          freesafe(szBufFind,"FindReplaceDlgProc");
+          freesafe(szBufFind, _T("FindReplaceDlgProc"));
         }
-        freesafe(szBufRepl,"FindReplaceDlgProc");
+        freesafe(szBufRepl, _T("FindReplaceDlgProc"));
       } SetFocus((HWND)lParam); // putting text in IDC_EDTREPLACE is messing up the Focus
       return TRUE;
     case IDC_PSHREPLACEFIND:
@@ -916,8 +948,8 @@ static BOOL CALLBACK FindReplaceDlgProc(HWND hDlg, UINT message,WPARAM wParam, L
     case IDC_PSHCOUNT:
       if (!FindCheck(hDlg,pfr)) break;
       if (pfr->InternalFlags&FRI_DIRTYCOLUMN) {
-        char szCols[24];
-        unsigned uLen=GetWindowTextA(GetDlgItem(hDlg,IDC_EDTCOLUMNS),szCols,sizeof(szCols));
+        TCHAR szCols[24];
+        unsigned uLen=GetWindowText(GetDlgItem(hDlg,IDC_EDTCOLUMNS),szCols,sizeof(szCols));
         if (uLen<2) {
 badcols:  pfr->uCol1=pfr->uCol2=0;
           SetWindowTextA(GetDlgItem(hDlg,IDC_EDTCOLUMNS),"#-#");
@@ -929,8 +961,8 @@ badcols:  pfr->uCol1=pfr->uCol2=0;
           }
         } else {
           unsigned uIndex=0;
-          int uCol1=atoi(strtokX(szCols,&uIndex,"- \t"));
-          int uCol2=atoi(strtokX(szCols,&uIndex,"- \t"));
+          int uCol1= _wtoi(strtokX(szCols,&uIndex, _T("- \t")));
+          int uCol2= _wtoi(strtokX(szCols,&uIndex, _T("- \t")));
           if (uCol1<1 || (uCol2<uCol1 && uCol2)) goto badcols;
           pfr->uCol1=uCol1;
           pfr->uCol2=uCol2; //MessageBoxFree(pfr->hwndSelf,smprintf(TEXT("uCol1:%d uCol2:%d"),uCol1,uCol2),TEXT("???"),MB_OK);
@@ -998,11 +1030,13 @@ idcancel:
         unsigned uCursel=SendMessage((HWND)lParam,CB_GETCURSEL,0,0);
         if (uCursel) {
           unsigned uTextLen=SendMessage((HWND)lParam,CB_GETLBTEXTLEN,uCursel,0);
-          char *szBuf=(char *)mallocsafe(uTextLen+1,"FindReplaceDlgProc"); if (!szBuf) break;
+          TCHAR *szBuf=(TCHAR *)mallocsafe(uTextLen+1, _T("FindReplaceDlgProc"));
+		  if (!szBuf)
+			  break;
           uTextLen=SendMessage((HWND)lParam,CB_GETLBTEXT,uCursel,(LPARAM)szBuf);
-          char *p=(char *)memchr(szBuf,':',uTextLen);
+		  TCHAR *p=(TCHAR *)memchr(szBuf, ':', uTextLen);
           if (p) {
-            HWND hEdt=GetDlgItem(hDlg,memicmp(szBuf,"REPLACE ",8)?IDC_EDTFIND:IDC_EDTREPLACE);
+            HWND hEdt=GetDlgItem(hDlg,memicmp(szBuf, "REPLACE ", 8) ? IDC_EDTFIND : IDC_EDTREPLACE);
             SendMessage(hEdt,SCI_REPLACESEL,0,(LPARAM)(p+2));
             SetFocus(hEdt);
             if (!(pfr->ScintillaFlags&SCFIND_REGEXP) && IsWindowEnabled(GetDlgItem(hDlg,IDC_CHXREGEX))) {
@@ -1011,7 +1045,7 @@ idcancel:
               CheckFlags(hDlg,pfr);
             }
           }
-          freesafe(szBuf,"FindReplaceDlgProc");
+          freesafe(szBuf, _T("FindReplaceDlgProc"));
           SendMessage((HWND)lParam,CB_SETCURSEL,0,0);
           return TRUE;
         }
@@ -1113,7 +1147,7 @@ static BOOL PopFindFindText(LPFINDREPLACEX pfr,BOOL fReplacing) {
 fail: pfr->eprpTail=pfr->eprpHead=epTargEnd;
       if (!(pfr->InternalFlags&FRI_INVISIBLE)) {
         if ((pfr->PersistentFlags&(FRP_WRAP|FRP_LINE1ST)) || pfr->uCol1) SENDMSGTOED(pfr->hwndEditor, SCI_GOTOPOS,epTargEnd,0); // we shouldn't send this when counting
-        SetWindowText(GetDlgItem(pfr->hwndSelf,stc1),"Not Found");
+        SetWindowText(GetDlgItem(pfr->hwndSelf,stc1), _T("Not Found"));
         if (!(pfr->InternalFlags&FRI_NOTFOUND)) MessageBeep(MB_ICONHAND);
       }
       //pfr->InternalFlags&=~FRI_UNMARKED; // This allows them to continue past the wrap anchor after a single failure
@@ -1148,7 +1182,7 @@ fail: pfr->eprpTail=pfr->eprpHead=epTargEnd;
       if (!(pfr->InternalFlags&FRI_INVISIBLE)) {
         SENDMSGTOED(pfr->hwndEditor, SCI_GOTOPOS,pfr->eprpTail,0);
         SENDMSGTOED(pfr->hwndEditor, SCI_SETSEL,pfr->eprpTail,pfr->eprpHead);
-        SetWindowText(GetDlgItem(pfr->hwndSelf,stc1),"Found!");
+        SetWindowText(GetDlgItem(pfr->hwndSelf,stc1), _T("Found!"));
       } // Order is only important for SCI_SETSEL, the next search/replace chooses its own order
     } //SetWindowTextFree(GetDlgItem(pfr->hwndSelf,stc1),smprintf("Start:%d End:%d tail:%u head:%u",epTargStart,epTargEnd,pfr->eprpTail,pfr->eprpHead));
     EnableFindButtons(pfr,pfr->hwndSelf,pfr->wFindWhatLen?TRUE:FALSE);
@@ -1167,24 +1201,12 @@ static void *strdupSCI_GetTargetTextAW(HWND hwndEditor,BOOL fUnicode,unsigned uE
   tr.chrg.cpMin=SENDMSGTOED(hwndEditor, SCI_GETTARGETSTART,0,0);
   tr.chrg.cpMax=SENDMSGTOED(hwndEditor, SCI_GETTARGETEND,0,0);
   unsigned uReplTextSzA=tr.chrg.cpMax-tr.chrg.cpMin+1+(fUnicode?0:uExtra);
-  tr.lpstrText=(char *)mallocsafe(uReplTextSzA,"SCI_GetTextRangeAW");
+  tr.lpstrText=(TCHAR *)mallocsafe(uReplTextSzA, _T("SCI_GetTextRangeAW"));
   if (tr.lpstrText) {
     unsigned uReplTextLenA=SENDMSGTOED(hwndEditor, SCI_GETTEXTRANGE,0,&tr); // does not include \0
-    if (fUnicode) {
-      unsigned uReplTextSzW=UCS2FromUTF8(tr.lpstrText,uReplTextLenA+1,NULL,0,FALSE,NULL)+uExtra;
-      wchar_t *sReplTextW=(wchar_t *)mallocsafe(uReplTextSzW*sizeof(wchar_t),"SCI_GetTextRangeAW");
-      if (sReplTextW) {
-        unsigned uReplTextLenW=UCS2FromUTF8(tr.lpstrText,uReplTextLenA+1,sReplTextW,uReplTextSzW,FALSE,NULL)-1; //MessageBoxFree(0,smprintf(TEXT("uReplTextSzW:%u uReplTextLenW:%u uReplTextSzA:%u uReplTextLenA:%u"),uReplTextSzW,uReplTextLenW,uReplTextSzA,uReplTextLenA),TEXT("???"),MB_OK);
-        if (puSize) *puSize = uReplTextSzW;
-        if (puLen) *puLen = uReplTextLenW;
-        rv=(void *)sReplTextW;
-      }
-      freesafe(tr.lpstrText,"SCI_GetTextRangeAW");
-    } else {
-        if (puSize) *puSize = uReplTextSzA;
-        if (puLen) *puLen = uReplTextLenA;
-        rv=(void *)tr.lpstrText;
-    }
+    if (puSize) *puSize = uReplTextSzA;
+    if (puLen) *puLen = uReplTextLenA;
+    rv=(void *)tr.lpstrText;
   }
   return rv;
 }
@@ -1195,11 +1217,11 @@ static int SCI_ReplaceTargetW(HWND hwndEditor,unsigned uTextLenW,wchar_t *sTextW
   if (uTextLenW == (unsigned)-1) uTextLenW=wcslen(sTextW);
   if (uTextLenW) {
     unsigned uTextLenA=UTF8FromUCS2(sTextW,uTextLenW,NULL,0,FALSE);
-    char *sTextA=(char *)mallocsafe(uTextLenA,"SCI_ReplaceTargetW");
+    char *sTextA=(char *)mallocsafe(uTextLenA, _T("SCI_ReplaceTargetW"));
     if (sTextA) {
       uTextLenA=UTF8FromUCS2(sTextW,uTextLenW,sTextA,uTextLenA,FALSE);
       rv=SENDMSGTOED(hwndEditor, SCI_REPLACETARGET,uTextLenA,sTextA);
-      freesafe(sTextA,"SCI_ReplaceTargetW");
+      freesafe(sTextA, _T("SCI_ReplaceTargetW"));
     }
   } else {
       rv=SENDMSGTOED(hwndEditor, SCI_REPLACETARGET,-1,"");
@@ -1213,7 +1235,7 @@ static int SCI_ReplaceTargetW(HWND hwndEditor,unsigned uTextLenW,wchar_t *sTextW
 static int PopFindReplaceText(LPFINDREPLACEX pfr,BOOL fUnify) {
   unsigned epTargStart,epTargEnd;
   if ((pfr->InternalFlags&FRI_NOTFOUND)) {
-    SetWindowText(GetDlgItem(pfr->hwndSelf,stc1),"Must Find first.");
+    SetWindowText(GetDlgItem(pfr->hwndSelf,stc1), _T("Must Find first."));
     goto fail;
   }
   if (pfr->InternalFlags&FRI_INVISIBLE) {
@@ -1228,7 +1250,7 @@ static int PopFindReplaceText(LPFINDREPLACEX pfr,BOOL fUnify) {
     epTargEnd=SENDMSGTOED(pfr->hwndEditor, SCI_GETSELECTIONEND, 0, 0);
   } // always: epTargStart<epTargEnd
   if (epTargStart==epTargEnd) {
-    SetWindowText(GetDlgItem(pfr->hwndSelf,stc1),"Replace requires selected text.");
+    SetWindowText(GetDlgItem(pfr->hwndSelf,stc1), _T("Replace requires selected text."));
 fail:
     pfr->InternalFlags|=FRI_NOTFOUND;
     EnableFindButtons(pfr,pfr->hwndSelf,pfr->wFindWhatLen?TRUE:FALSE);
@@ -1265,7 +1287,7 @@ fail:
         }
         if (uUpChars && !uLowChars) uFindCase=CASEUPPER;
         else if (uLowChars && !uUpChars) uFindCase=CASELOWER;
-        freesafe(vBuf,"PopFindReplaceText");
+        freesafe(vBuf, _T("PopFindReplaceText"));
       }
     }
     if (fUnify) SENDMSGTOED(pfr->hwndEditor, SCI_BEGINUNDOACTION,0,0); // no gotos or breaks between the UNDOACTIONs allowed
@@ -1287,7 +1309,7 @@ fail:
           SENDMSGTOED(pfr->hwndEditor, SCI_REPLACETARGET,vLen,sReplTextA);
 #undef sReplTextA
         }
-        freesafe(vBuf,"PopFindReplaceText");
+        freesafe(vBuf, _T("PopFindReplaceText"));
       }
     }
     //if (pfr->cCounter) {
@@ -1357,7 +1379,7 @@ static int __cdecl PopFindReplaceCallback(unsigned uCommand,LPFINDREPLACEX pVoid
       if (pfr->PersistentFlags&FRP_SELECTED) CheckFlags(pfr->hwndSelf,pfr);
     }
     g_hDlg=pfr->hwndSelf;
-    g_wpScintillaOrigProc1=(WNDPROC)SetWindowLong(GetDlgItem(pfr->hwndSelf,IDC_EDTFIND),GWL_WNDPROC,(LONG)ScintillaSubclassProc1);
+    g_wpScintillaOrigProc1=(WNDPROC)SetWindowLongPtr(GetDlgItem(pfr->hwndSelf,IDC_EDTFIND), GWLP_WNDPROC,(LONG)ScintillaSubclassProc1);
     if ((pfr->PersistentFlags&FRP_AUTOGRABFIND) && !(pfr->PersistentFlags&FRC_FINDINCREMENTAL) ) {
       unsigned uSellen=SENDMSGTOED(pfr->hwndEditor, SCI_GETSELTEXT, 0, NULL)-1; // NUL byte not included
       if (!uSellen) { // get current word
@@ -1367,7 +1389,7 @@ static int __cdecl PopFindReplaceCallback(unsigned uCommand,LPFINDREPLACEX pVoid
         uSellen=epWord2-epWord1; // NUL not included here
         //MessageBoxFree(pfr->hwndSelf,smprintf(TEXT("epCurpos:%u epWord1:%u epWord2:%u uSellen:%u"),epCurpos,epWord1,epWord2,uSellen),TEXT("???"),MB_OK);
         if (uSellen) {
-          armreallocsafe(&pfr->lpstrFindWhat,&pfr->wFindWhatSz,uSellen+1,ARMSTRATEGY_MAINTAIN,0,"PopFindReplaceCallback");
+          armreallocsafe(&pfr->lpstrFindWhat, &pfr->wFindWhatSz, CHARSIZE(uSellen + 1), ARMSTRATEGY_MAINTAIN, 0, _T("PopFindReplaceCallback"));
           if (pfr->lpstrFindWhat) {
             struct TextRange tr;
             tr.lpstrText=pfr->lpstrFindWhat; tr.chrg.cpMin=epWord1; tr.chrg.cpMax=epWord2;
@@ -1382,17 +1404,18 @@ static int __cdecl PopFindReplaceCallback(unsigned uCommand,LPFINDREPLACEX pVoid
           if (uCol1>uCol2) {int temp=uCol1; uCol1=uCol2; uCol2=temp;}
           pfr->uCol1=uCol1++;
           pfr->uCol2=uCol2;
-          SetWindowTextFree(GetDlgItem(pfr->hwndSelf,IDC_EDTCOLUMNS),smprintf("%u-%u columns",uCol1,uCol2));
+          SetWindowTextFree(GetDlgItem(pfr->hwndSelf,IDC_EDTCOLUMNS),smprintf(_T("%u-%u columns"),uCol1,uCol2));
         }
-        armreallocsafe(&pfr->lpstrFindWhat,&pfr->wFindWhatSz,uSellen+1,ARMSTRATEGY_MAINTAIN,0,"PopFindReplaceCallback");
-        if (pfr->lpstrFindWhat) pfr->wFindWhatLen=SENDMSGTOED(pfr->hwndEditor, SCI_GETSELTEXT, 0, pfr->lpstrFindWhat)-1;
+        armreallocsafe(&pfr->lpstrFindWhat, &pfr->wFindWhatSz, CHARSIZE(uSellen + 1), ARMSTRATEGY_MAINTAIN, 0, _T("PopFindReplaceCallback"));
+        if (pfr->lpstrFindWhat)
+			pfr->wFindWhatLen=SENDMSGTOED(pfr->hwndEditor, SCI_GETSELTEXT, 0, pfr->lpstrFindWhat)-1;
       }
     }
     int iCodePage=SENDMSGTOED(pfr->hwndEditor,SCI_GETCODEPAGE,0,0);
     SetWindowTextUTF8(pfr,GetDlgItem(pfr->hwndSelf,IDC_EDTFIND),pfr->lpstrFindWhat,pfr->wFindWhatLen,iCodePage);
-    g_wpScintillaOrigProc2=(WNDPROC)SetWindowLong(GetDlgItem(pfr->hwndSelf,IDC_EDTREPLACE),GWL_WNDPROC,(LONG)ScintillaSubclassProc2);
+    g_wpScintillaOrigProc2=(WNDPROC)SetWindowLongPtr(GetDlgItem(pfr->hwndSelf,IDC_EDTREPLACE), GWLP_WNDPROC,(LONG)ScintillaSubclassProc2);
     SetWindowTextUTF8(pfr,GetDlgItem(pfr->hwndSelf,IDC_EDTREPLACE),pfr->lpstrReplaceWith,pfr->wReplaceWithLen,iCodePage);
-    SetWindowTextFree(GetDlgItem(pfr->hwndSelf,stc1),smprintf("^I=Tab ^M=Return (%s)",(pfr->InternalFlags&FRI_UNICODE)?"UNICODE":"ANSI"));
+    SetWindowTextFree(GetDlgItem(pfr->hwndSelf,stc1),smprintf(_T("^I=Tab ^M=Return (%s)"),(pfr->InternalFlags&FRI_UNICODE)?"UNICODE":"ANSI"));
     } break;
   case FRC_REPLACEALL:
     uReplaceLimit=0;
@@ -1406,18 +1429,21 @@ replacesome:
       pfr->eprpTail=SENDMSGTOED(pfr->hwndEditor, SCI_GETCURRENTPOS, 0, 0); // order doesn't matter
       pfr->InternalFlags|=FRI_INVISIBLE;
       while(PopFindFindText(pfr,TRUE) && uReplaceLimit && iReplaceResult!=1) {iReplaceResult=PopFindReplaceText(pfr,FALSE); cReplaces++; uReplaceLimit--;}
-      SetWindowTextFree(GetDlgItem(pfr->hwndSelf,stc1),smprintf("%u %s",cReplaces,(iReplaceResult==1)?"Repl (recursion requires smaller replace)":"Bulk Replacements"));
+      SetWindowTextFree(GetDlgItem(pfr->hwndSelf,stc1),smprintf(_T("%u %s"),cReplaces,(iReplaceResult==1)?"Repl (recursion requires smaller replace)":"Bulk Replacements"));
       pfr->InternalFlags&=~FRI_INVISIBLE;
       SENDMSGTOED(pfr->hwndEditor, SCI_SETSEL, pfr->eprpHead, pfr->eprpTail);
     }
     SENDMSGTOED(pfr->hwndEditor, SCI_ENDUNDOACTION, 0, 0);
     break;
   case FRC_REPLACE: {
-      char buf[32];
+      TCHAR buf[32];
       GetWindowText(GetDlgItem(pfr->hwndSelf,IDC_EDTREPLACECT),buf,sizeof(buf));
-      uReplaceLimit=atoi(buf);
+      uReplaceLimit= _wtoi(buf);
     }
-    if (uReplaceLimit<1) {/*uReplaceLimit=1;*/ SetWindowText(GetDlgItem(pfr->hwndSelf,IDC_EDTREPLACECT),"1"); }
+    if (uReplaceLimit<1) {
+		/*uReplaceLimit=1;*/
+		SetWindowText(GetDlgItem(pfr->hwndSelf,IDC_EDTREPLACECT), _T("1"));
+	}
     else if (uReplaceLimit>1) goto replacesome;
     if (PopFindReplaceText(pfr,TRUE)<1) break; // else fall through
   case FRC_FINDNEXT:
@@ -1476,7 +1502,10 @@ void PopFindReplaceDlg(HWND hwndOwner,HWND hwndEditor,HINSTANCE hInstance,CBFIND
   } else {
     g_fr.hwndOwner        = hwndOwner ;
     g_fr.hwndEditor       = hwndEditor ;
-    g_fr.hwndSelf=(HWND)SENDMSGTOED(hwndOwner,NPPM_MODELESSDIALOG,MODELESSDIALOGADD,CreateDialogParamA(hInstance,"REPLACEDLG1",hwndOwner,FindReplaceDlgProc,(LPARAM)&g_fr));
+    g_fr.hwndSelf=(HWND)SENDMSGTOED(hwndOwner,
+		NPPM_MODELESSDIALOG,
+		MODELESSDIALOGADD,
+		CreateDialogParamW(hInstance, _T("REPLACEDLG1"), hwndOwner, FindReplaceDlgProc, (LPARAM)&g_fr));
     //if (!g_fr.hwndSelf) MessageBox(hwndOwner,"Create Failed","???",MB_ICONSTOP);
   }
 }
@@ -1485,23 +1514,26 @@ void PopFindReplaceDlgDestroy(void) {
   if (g_fr.hwndSelf) DestroyWindow(g_fr.hwndSelf);
 }
 
-void PopFindReplaceDlgINI(BOOL fStop,/*const char *szPluginPath,*/const char *szINIPath) {
+void PopFindReplaceDlgINI(BOOL fStop,/*const char *szPluginPath,*/const TCHAR *szINIPath) {
   if (!fStop) {
     if (!g_fr.szPathList) g_fr.uPathListSz=256;
-    g_fr.uPathListLen=GetPrivateProfileStringarm("FindReplace","RepositoryFolders","|",&g_fr.szPathList,&g_fr.uPathListSz,szINIPath);
+    g_fr.uPathListLen=GetPrivateProfileStringarm(_T("FindReplace"), _T("RepositoryFolders"), _T("|"), &g_fr.szPathList, &g_fr.uPathListSz, szINIPath);
     if (g_fr.szPathList) {
-      if (!strcmp(g_fr.szPathList,"|")) {
+      if (!wcscmp(g_fr.szPathList, _T("|"))) {
         g_fr.uPathListLen=0;
-        strcpyarmsafe(&g_fr.szPathList,&g_fr.uPathListSz,&g_fr.uPathListLen,/*"-"*/"TextFX Original:%CSIDLX_TEXTFXDATA%\\ReplaceSets;Most Recent Folder:;My Documents:%CSIDL_PERSONAL%","PopFindReplaceDlgINI");
-        if (g_fr.szPathList) WritePrivateProfileString("FindReplace","RepositoryFolders",g_fr.szPathList,szINIPath);
+        strcpyarmsafe(&g_fr.szPathList, (size_t*)&g_fr.uPathListSz, (size_t*)&g_fr.uPathListLen,
+			/*"-"*/_T("TextFX Original:%CSIDLX_TEXTFXDATA%\\ReplaceSets;Most Recent Folder:;My Documents:%CSIDL_PERSONAL%"), _T("PopFindReplaceDlgINI"));
+        if (g_fr.szPathList) WritePrivateProfileString(_T("FindReplace"), _T("RepositoryFolders"), g_fr.szPathList, szINIPath);
       }
-      XlatPathEnvVarsarm(&g_fr.szPathList,&g_fr.uPathListSz,&g_fr.uPathListLen);
+      XlatPathEnvVarsarm(&g_fr.szPathList, &g_fr.uPathListSz, &g_fr.uPathListLen);
       //MessageBoxFree(0,smprintf("Buf:%u Len:%u\r\n%s",g_fr.uPathListSz,g_fr.uPathListLen,g_fr.szPathList),"???", MB_OK|MB_ICONWARNING);
     }
-    g_fr.uPathListSelected=GetPrivateProfileInt("FindReplace","RepositorySelected",0,szINIPath);
+    g_fr.uPathListSelected=GetPrivateProfileInt(_T("FindReplace"), _T("RepositorySelected"), 0, szINIPath);
     // It is not desirable to check that each path is valid because that could cause startup delays for Notepad++
   } else {
-    WritePrivateProfileStringFree("FindReplace"     ,"RepositorySelected"         ,smprintf("%u",g_fr.uPathListSelected),szINIPath);
+    WritePrivateProfileStringFree(_T("FindReplace"),
+		_T("RepositorySelected"),
+		smprintf(_T("%u"), g_fr.uPathListSelected),szINIPath);
   }
 }
 
@@ -1516,16 +1548,26 @@ void PopFindReplaceDlgInit(BOOL stop/*,const char *szPluginPath*/) {
     g_fr.ScintillaFlags=SCFIND_POSIX;
     g_ofn.lpstrFile[0]='\0';
     g_ofn.lpstrFileTitle[0]='\0';
-    char *szPath=NULL; unsigned uPathSz=0;
-    NPPGetSpecialFolderLocationarm(CSIDLX_TEXTFXDATA,NULL,&szPath,&uPathSz,NULL,"ReplaceSets\\");
+    TCHAR *szPath=NULL;
+	size_t uPathSz=0;
+    NPPGetSpecialFolderLocationarm(CSIDLX_TEXTFXDATA,NULL,&szPath,&uPathSz,NULL, _T("ReplaceSets\\"));
     if ((szPath/*(=smprintfpath("%s%?\\%s%?\\%s",szPluginPath,SUPPORT_PATH,"ReplaceSets\\")*/)) {
       strncpymem(g_szInit,NELEM(g_szInit),szPath,(unsigned)-1);
-      freesafe(szPath,"PopFindReplaceDlgInit");
+      freesafe(szPath, _T("PopFindReplaceDlgInit"));
     }
   } else {
-    if (g_fr.lpstrFindWhat) {freesafe(g_fr.lpstrFindWhat,"PopFindReplaceDlgInit"); g_fr.lpstrFindWhat=NULL;}
-    if (g_fr.lpstrReplaceWith) {freesafe(g_fr.lpstrReplaceWith,"PopFindReplaceDlgInit"); g_fr.lpstrReplaceWith=NULL;}
-    if (g_fr.szPathList) {freesafe(g_fr.szPathList,"PopFindReplaceDlgInit"); g_fr.szPathList=NULL;}
+    if (g_fr.lpstrFindWhat) {
+		freesafe(g_fr.lpstrFindWhat, _T("PopFindReplaceDlgInit"));
+		g_fr.lpstrFindWhat=NULL;
+	}
+    if (g_fr.lpstrReplaceWith) {
+		freesafe(g_fr.lpstrReplaceWith, _T("PopFindReplaceDlgInit"));
+		g_fr.lpstrReplaceWith=NULL;
+	}
+    if (g_fr.szPathList) {
+		freesafe(g_fr.szPathList, _T("PopFindReplaceDlgInit"));
+		g_fr.szPathList=NULL;
+	}
   }
   HistoryInit(&g_FindHist,stop);
   HistoryInit(&g_ReplHist,stop);
