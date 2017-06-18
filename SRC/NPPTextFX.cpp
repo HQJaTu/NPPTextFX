@@ -40,10 +40,6 @@
 //  Take functions that now use clipboard text because it's all I can get to and write proper dialog inputs for them.
 // "new feature" is found throughout the code where new features have been thought of but not implemented
 
-// Projects for Dev-C++ 4.9.9.2 and CodeBlocks are included
-// This compiles under MinGW or Digital Mars as a .c or .cpp file
-// This compiles under MS Visual C++ 2003 Free or Borland C++ 5.51 Free as a .cpp file
-
 // Users wanting to run MS Visual C++ 2003 Free must download both the toolkit and the SDK
 // Install the SDK base option only and move include & lib over to the include&lib in the Visual Toolkit folder.
 // http://msdn.microsoft.com/visualc/vctoolkit2003/
@@ -60,24 +56,6 @@
 
 /* This was designed as a C file but only MinGW and Digital Mars handle variable declarations within a function for .c sources. */
 /* Switching to .cpp opened up the rest of the compilers */
-
-/* For Codeblocks-BC Borland we must fix the underscore in front of the exported symbols problem */
-/* You must go to Compile | Compiler Options | Borland C++ Compiler 5.5 | Other | Advanced Options | Link Object Files to Dynamic Library */
-/* and change the text box to $linker -Tpd $link_options $libdirs c0d32 $link_objects, $exe_output,, $libs,$exe_output.BCDEF, $link_resobjects */
-
-/* For CodeBlocks-WC OpenWatcom we must fix DLL generation and the underscore in front of the exported symbols problems */
-/* You must go to Compile | Compiler Options | OpenWatcom (W32) Compiler | Other | Advanced Options | Link Object Files to Dynamic Library */
-/* and change the text box to $linker -nologo -dll -out:$exe_output $libs $link_objects -def:$exe_output.BCDEF */
-/* Then go to Compile | Compiler Options | OpenWatcom (W32) Compiler | Programs */
-/* and change the Dynamic Linker to: link386.exe */
-/* option -3s "386 stack calling conventions" must be selected */
-
-/* For Codeblocks-DMC Digital Mars we must fix the problem where the .DEF file doesn't get created during compile to pass to the linker if it's not all done at once */
-/* If a .DMCDEF isn't already provided, create one by running: */
-/* c:\dm\bin\dmc.exe -mn -WD -DBUILD_DLL -I"C:\dm\include" NPPTextFX.cpp shell32.lib kernel32.lib */
-/* and rename it to NPPTextFX.DLL.DMCDEF */
-/* Then you must go to Compile | Compiler Options | Digital Mars Compiler | Other | Advanced Options | Link Object Files to Dynamic Library */
-/* and change the text box to $linker $link_options $link_objects,$exe_output,,$libs,$exe_output.DMCDEF,$link_resobjects */
 
 /* Indent Lines Sticky Margin was my first routine that could go low/high performace so I had it GetTickCount() with NPPTextFX.CPP==178K on a P3-500.
    High,Low,Size,Time Performace // few optimizations turned on

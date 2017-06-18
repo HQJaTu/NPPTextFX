@@ -1,0 +1,6 @@
+VS2017/.vs/
+VS2017/Release/
+VS2017/x64/
+VS2017/TestResults/
+VS2017/TextFX.vcxproj.user
+Tests/x64/
