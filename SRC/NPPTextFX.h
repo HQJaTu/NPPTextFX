@@ -33,6 +33,10 @@
 #error NPPDEBUG Must be defined as a -D option for all source files
 #endif
 
+// Scintilla message sender function pointer
+EXTERNC LRESULT(*gScintillaMessageSender)(BOOL, UINT, WPARAM, LPARAM);
+EXTERNC BOOL g_fOnNT;
+
 EXTERNC void *ReallocFree(void *memblock, size_t size);
 #if NPPDEBUG
 EXTERNC void *freesafebounds(void *bf, unsigned ct, const TCHAR *title);
@@ -155,14 +159,15 @@ EXTERNC int memmovearm(void **dest, size_t *destsz, size_t *destlen, TCHAR *dest
 #define memmovearmtest(dt,ds,dl,dp,sp,nt) memmovearm(dt,ds,dl,dp,sp)
 #endif
 
-EXTERNC void memcqspnstart(const TCHAR *find,unsigned findl,unsigned *quick);
-EXTERNC TCHAR *memcqspn(const TCHAR *buf,const TCHAR *end,const unsigned *quick);
-EXTERNC TCHAR *memqspn(const TCHAR *buf,const TCHAR *end,const unsigned *quick);
-EXTERNC TCHAR *memcspn(const TCHAR *buf,const TCHAR *end,const TCHAR *find,unsigned findl);
-EXTERNC TCHAR *memspn(const TCHAR *buf,const TCHAR *end,const TCHAR *find,unsigned findl);
-EXTERNC TCHAR *memstr(const TCHAR *buf,const TCHAR *end,const TCHAR *find,unsigned findl);
-EXTERNC TCHAR *memchrX(const TCHAR *buf,const TCHAR *end,unsigned find);
-EXTERNC TCHAR *strncpymem(TCHAR *szDest,size_t uDestSz,const TCHAR *sSource,unsigned uSourceLen);
+EXTERNC void memcqspnstart(const TCHAR *find, unsigned findl, unsigned *quick);
+EXTERNC TCHAR *memcqspn(const TCHAR *buf, const TCHAR *end, const unsigned *quick);
+EXTERNC TCHAR *memqspn(const TCHAR *buf, const TCHAR *end, const unsigned *quick);
+EXTERNC TCHAR *memcspn(const TCHAR *buf, const TCHAR *end, const TCHAR *find, unsigned findl);
+EXTERNC char *memcspn_chr(const char *buf, const char *end, const char *find, unsigned findl);
+EXTERNC TCHAR *memspn(const TCHAR *buf, const TCHAR *end, const TCHAR *find, unsigned findl);
+EXTERNC TCHAR *memstr(const TCHAR *buf, const TCHAR *end, const TCHAR *find, unsigned findl);
+EXTERNC TCHAR *memchrX(const TCHAR *buf, const TCHAR *end, unsigned find);
+EXTERNC TCHAR *strncpymem(TCHAR *szDest, size_t uDestSz, const TCHAR *sSource, unsigned uSourceLen);
 #define strncpy strncpy_unsafe
 TCHAR *strtokX(TCHAR *szStr, unsigned *puPos, const TCHAR *szDeli);
 #define strtok strtok_unsafe
@@ -205,3 +210,92 @@ EXTERNC unsigned NPPGetSpecialFolderLocationarm(int nFolder, const TCHAR *szName
 EXTERNC BOOL XlatPathEnvVarsarm(TCHAR **dest, size_t *destsz, size_t *destlen);
 
 EXTERNC unsigned tidyHTML(char ** dest, unsigned * destsz, unsigned * destlen, unsigned eoltype, unsigned tabwidth);
+
+
+// See PluginInterface.h
+#define PFUNCPLUGINCMD void __cdecl /* Some compilers cannot use the typedef in every case. This define works to alter function declarations with all compilers */
+
+
+// SUBSECTION: Single line menu functions
+EXTERNC PFUNCPLUGINCMD pfdummy(void);
+EXTERNC PFUNCPLUGINCMD pfconvert1q2q(void);
+EXTERNC PFUNCPLUGINCMD pfconvert2q1q(void);
+EXTERNC PFUNCPLUGINCMD pfconvertqtswap(void);
+EXTERNC PFUNCPLUGINCMD pfconvertqtdrop(void);
+EXTERNC PFUNCPLUGINCMD pfconvertescapesq(void);
+EXTERNC PFUNCPLUGINCMD pfconvertescape1qsq(void);
+EXTERNC PFUNCPLUGINCMD pfconvertescape1qs1q(void);
+EXTERNC PFUNCPLUGINCMD pfconvertescapeboth(void);
+EXTERNC PFUNCPLUGINCMD pfconvertunescapesq(void);
+EXTERNC PFUNCPLUGINCMD pfconvertunescapesq1q(void);
+EXTERNC PFUNCPLUGINCMD pfconvertunescapes1q1q(void);
+EXTERNC PFUNCPLUGINCMD pfconvertunescapeboth(void);
+EXTERNC PFUNCPLUGINCMD pfconvertescape2q22q(void);
+EXTERNC PFUNCPLUGINCMD pfconvertescape1q22q(void);
+EXTERNC PFUNCPLUGINCMD pfconvertunescape22q2q(void);
+EXTERNC PFUNCPLUGINCMD pfconvertunescape22q1q(void);
+EXTERNC PFUNCPLUGINCMD pfconvertuppercase(void);
+EXTERNC PFUNCPLUGINCMD pfconvertlowercase(void);
+EXTERNC PFUNCPLUGINCMD pfconvertpropercase(void);
+EXTERNC PFUNCPLUGINCMD pfconvertsentencecase(void);
+EXTERNC PFUNCPLUGINCMD pfconvertinvertcase(void);
+EXTERNC PFUNCPLUGINCMD pfencodeHTML(void);
+EXTERNC PFUNCPLUGINCMD pfencodeURIcomponent(void);
+EXTERNC PFUNCPLUGINCMD pfrot13(void);
+EXTERNC PFUNCPLUGINCMD pfunwraptext(void);
+EXTERNC PFUNCPLUGINCMD pfrewraptext(void);
+EXTERNC PFUNCPLUGINCMD pflineupcomma(void);
+EXTERNC PFUNCPLUGINCMD pflineupequals(void);
+EXTERNC PFUNCPLUGINCMD pflineupclipboard(void);
+EXTERNC PFUNCPLUGINCMD pfinsertclipboardcolumn(void);
+EXTERNC PFUNCPLUGINCMD pfemptyundobuffer(void);
+EXTERNC PFUNCPLUGINCMD pfsubmitHTML(void);
+EXTERNC PFUNCPLUGINCMD pfsubmitCSS(void);
+EXTERNC PFUNCPLUGINCMD pfdecimal2binary(void);
+EXTERNC PFUNCPLUGINCMD pfdecimal2octal(void);
+EXTERNC PFUNCPLUGINCMD pfdecimal2hex(void);
+EXTERNC PFUNCPLUGINCMD pfhex2decimal(void);
+EXTERNC PFUNCPLUGINCMD pfoctal2decimal(void);
+EXTERNC PFUNCPLUGINCMD pfbinary2decimal(void);
+EXTERNC PFUNCPLUGINCMD pfcnum2decimal(void);
+EXTERNC PFUNCPLUGINCMD pfstripHTMLtags(void);
+EXTERNC PFUNCPLUGINCMD pfstripHTMLnotabs(void);
+EXTERNC PFUNCPLUGINCMD pfkillwhitenonqtvb(void);
+EXTERNC PFUNCPLUGINCMD pfkillwhitenonqtc(void);
+EXTERNC PFUNCPLUGINCMD pffindqtstringvb(void);
+EXTERNC PFUNCPLUGINCMD pffindqtstringc(void);
+EXTERNC PFUNCPLUGINCMD pffilldownover(void);
+EXTERNC PFUNCPLUGINCMD pffilldownins(void);
+EXTERNC PFUNCPLUGINCMD pfaddup(void);
+EXTERNC PFUNCPLUGINCMD pfzapspace(void);
+EXTERNC PFUNCPLUGINCMD pfzapnonprint(void);
+EXTERNC PFUNCPLUGINCMD pfspace2tabs(void);
+EXTERNC PFUNCPLUGINCMD pfspace2tabs8(void);
+EXTERNC PFUNCPLUGINCMD pfindentlinessurround(void);
+EXTERNC PFUNCPLUGINCMD pftrimtrailingspace(void);
+EXTERNC PFUNCPLUGINCMD pfdeleteblanklines(void);
+EXTERNC PFUNCPLUGINCMD pfdeleteblanklines2(void);
+EXTERNC PFUNCPLUGINCMD pfreindentcode(void);
+EXTERNC PFUNCPLUGINCMD pfascii2EBCDIC(void);
+EXTERNC PFUNCPLUGINCMD pfEBCDIC2ascii(void);
+EXTERNC PFUNCPLUGINCMD pfcp1251toKOI8_R(void);
+EXTERNC PFUNCPLUGINCMD pfKOI8_Rtocp1251(void);
+EXTERNC PFUNCPLUGINCMD pftohex16(void);
+EXTERNC PFUNCPLUGINCMD pftohex32(void);
+EXTERNC PFUNCPLUGINCMD pftohex64(void);
+EXTERNC PFUNCPLUGINCMD pftohex128(void);
+EXTERNC PFUNCPLUGINCMD pffromhex(void);
+EXTERNC PFUNCPLUGINCMD pfwordcount(void);
+EXTERNC PFUNCPLUGINCMD pfinsertlinenumbers(void);
+EXTERNC PFUNCPLUGINCMD pfdeletefirstword(void);
+EXTERNC PFUNCPLUGINCMD pfextendblockspaces(void);
+EXTERNC PFUNCPLUGINCMD pfcleanemailquoting(void);
+EXTERNC PFUNCPLUGINCMD pfuudecode(void);
+EXTERNC PFUNCPLUGINCMD pfbase64decode(void);
+EXTERNC PFUNCPLUGINCMD pfhexbyterunstolittlendian2(void);
+EXTERNC PFUNCPLUGINCMD pfhexbyterunstolittlendian4(void);
+EXTERNC PFUNCPLUGINCMD pflittlendiantohexbyteruns(void);
+EXTERNC PFUNCPLUGINCMD pfconverteol(void);
+EXTERNC PFUNCPLUGINCMD pfsplitlinesatchvb(void);
+EXTERNC PFUNCPLUGINCMD pfsplitlinesatchc(void);
+// SUBSECTION: END

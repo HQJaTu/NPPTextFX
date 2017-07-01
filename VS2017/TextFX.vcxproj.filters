@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\Src\CapsTables.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\Src\MicroXML\MicroXML.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -30,13 +27,10 @@
     <ClCompile Include="..\Src\Poppad\Popfind.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\Src\TransformsA.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Src\TransformsW.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\Src\Scintilla\UniConversion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SRC\Transforms.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -62,7 +56,7 @@
     <ClInclude Include="..\Src\Scintilla.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\Src\TransformsT.h">
+    <ClInclude Include="Transforms.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

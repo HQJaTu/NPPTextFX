@@ -5,13 +5,10 @@
      * Wide & Ansi Function Declarations in a single include
  */
 
-#ifdef TFUNCTIONCODE
 #include <windows.h>
 #include <stdio.h>
 #include <tchar.h>
 #include <ctype.h>
-#include "CapsTables.H"
-#endif
 
 #ifndef EXTERNC
 #ifdef __cplusplus
@@ -21,102 +18,124 @@
 #endif
 #endif
 
-#ifdef __BORLANDC__
-#pragma warn -pch	/* Borland-C: Cannot create precompiled header		 */
-#endif
 
 /* TCHAR is defined with or without UNICODE which we can't change once set.
-   Since TCHARDYNAMIC is our own define, we can #define it, #include this file, #define it to another
+   Since TCHAR is our own define, we can #define it, #include this file, #define it to another
    value, and #include this file again producing A and W function declarations. The
    code is not included to generate the declarations so only the function declaration needs
-   to use TCHARDYNAMIC. */
+   to use TCHAR. */
 
-EXTERNC unsigned TFUNCTION(meminvertcase)(TCHARDYNAMIC *str,unsigned destlen)
-#ifdef TFUNCTIONCODE
+EXTERNC unsigned meminvertcase(TCHAR *str, unsigned destlen)
 {
-  TCHARDYNAMIC *end;
-  unsigned n=0;
+	TCHAR *end;
+	unsigned n = 0;
 
-  //MessageBox(0,TEXT("meminvertcase"),TEXT("???"),MB_OK);
-  if (CapsTablesWStart(sizeof(*str)) && str) for(end=str+destlen; str<end; str++) {
-    if (IsCharLowerX(*str)) {*str = CharUpperX(*str); n++; }
-    else if (IsCharUpperX(*str)) {*str = CharLowerX(*str); n++; }
-  }
-  CapsTablesWStop(0);
-  return(n);
+	//MessageBox(0,TEXT("meminvertcase"),TEXT("???"),MB_OK);
+	for (end = str + destlen; str < end; str++) {
+		if (IsCharLowerW(*str)) {
+			*str = (TCHAR)CharUpperW((TCHAR*)*str);
+			n++;
+		} else if (IsCharUpperW(*str)) {
+			*str = (TCHAR)CharLowerW((TCHAR*)*str);
+			n++;
+		}
+	}
+
+	return(n);
 }
-#else
-;
-#endif
 
 //returns number of characters altered
-EXTERNC unsigned TFUNCTION(memsentencecase)(TCHARDYNAMIC *str,unsigned destlen)
-#ifdef TFUNCTIONCODE
+EXTERNC unsigned memsentencecase(TCHAR *str, unsigned destlen)
 {
-  TCHARDYNAMIC *end;
-  unsigned n=0;
-  int waspunct=TRUE;
+	TCHAR *end;
+	unsigned n = 0;
+	int waspunct = TRUE;
 
-  if (CapsTablesWStart(sizeof(*str)) && str) for(end=str+destlen; str<end; str++) {
-    if (IsCharLowerX(*str)) {if (waspunct) { *str = CharUpperX(*str); n++;}}
-    else if (IsCharUpperX(*str)) { if (!waspunct) {*str = CharLowerX(*str); n++;}}
-    else if (*str==TEXT('.') || *str==TEXT('!') || *str==TEXT('?')) {if (isspace(str[1])) waspunct=TRUE;}
-    if (IsCharAlphaNumericX(*str)) waspunct=FALSE;
-  }
-  CapsTablesWStop(0);
-  return(n);
+	for (end = str + destlen; str < end; str++) {
+		if (IsCharLowerW(*str)) {
+			if (waspunct) {
+				*str = (TCHAR)CharUpperW((TCHAR*)*str);
+				n++;
+			}
+		}
+		else if (IsCharUpperW(*str)) {
+			if (!waspunct) {
+				*str = (TCHAR)CharLowerW((TCHAR*)*str);
+				n++;
+			}
+		}
+		else if (*str == TEXT('.') || *str == TEXT('!') || *str == TEXT('?')) {
+			if (isspace(str[1]))
+				waspunct = TRUE;
+		}
+		if (IsCharAlphaNumericW(*str))
+			waspunct = FALSE;
+	}
+
+	return(n);
 }
-#else
-;
-#endif
 
 //returns number of characters altered
-EXTERNC unsigned TFUNCTION(mempropercase)(TCHARDYNAMIC *str,unsigned destlen)
-#ifdef TFUNCTIONCODE
+EXTERNC unsigned mempropercase(TCHAR *str, unsigned destlen)
 {
-  TCHARDYNAMIC *end;
-  unsigned n=0;
-  int wasspace=TRUE;
+	TCHAR *end;
+	unsigned n = 0;
+	int wasspace = TRUE;
 
-  if (CapsTablesWStart(sizeof(*str)) && str) for(end=str+destlen; str<end; str++) {
-           if ( wasspace && IsCharLowerX(*str)) {str[0] = CharUpperX(str[0]); n++; }
-      else if (!wasspace && IsCharUpperX(*str)) {str[0] = CharLowerX(str[0]); n++; }
-      wasspace=!IsCharAlphaNumericX(*str);
-    }
-  CapsTablesWStop(0);
-  return(n);
+	for (end = str + destlen; str < end; str++) {
+		if (wasspace && IsCharLowerW(*str)) {
+			str[0] = (TCHAR)CharUpperW((TCHAR*)str[0]);
+			n++;
+		}
+		else if (!wasspace && IsCharUpperW(*str)) {
+			str[0] = (TCHAR)CharLowerW((TCHAR*)str[0]);
+			n++;
+		}
+		wasspace = !IsCharAlphaNumericW(*str);
+	}
+
+	return(n);
 }
-#else
-;
-#endif
 
 //returns number of characters altered
-EXTERNC unsigned TFUNCTION(memuppercase)(TCHARDYNAMIC *str,unsigned destlen)
-#ifdef TFUNCTIONCODE
+EXTERNC unsigned memuppercase(TCHAR *str, unsigned destlen)
 {
-  TCHARDYNAMIC *end;
+	int cnt = 0;
+	TCHAR* end;
+	for (end = str + destlen; str < end; str++) {
+		if (!IsCharUpperW(str[0])) {
+			TCHAR charIn = *str;
+			TCHAR* charOut = CharUpperW(&charIn);
+			if (*str != *charOut) {
+				*str = *charOut;
+				++cnt;
+			}
+		}
+	}
 
-  if (CapsTablesWStart(sizeof(*str)) && str) for(end=str+destlen; str<end; str++) str[0] = CharUpperX(str[0]);
-  CapsTablesWStop(0);
-  return(1);
+	return cnt;
 }
-#else
-;
-#endif
+
 
 //returns number of characters altered
-EXTERNC unsigned TFUNCTION(memlowercase)(TCHARDYNAMIC *str,unsigned destlen)
-#ifdef TFUNCTIONCODE
+EXTERNC unsigned memlowercase(TCHAR *str, unsigned destlen)
 {
-  TCHARDYNAMIC *end;
+	int cnt = 0;
+	TCHAR* end;
+	for (end = str + destlen; str < end; str++) {
+		if (!IsCharLowerW(str[0])) {
+			TCHAR charIn = *str;
+			TCHAR* charOut = CharLowerW(&charIn);
+			if (*str != *charOut) {
+				*str = *charOut;
+				++cnt;
+			}
+		}
+	}
 
-  if (CapsTablesWStart(sizeof(*str)) && str) for(end=str+destlen; str<end; str++) str[0] = CharLowerX(str[0]);
-  CapsTablesWStop(0);
-  return(1);
+	return cnt;
 }
-#else
-;
-#endif
+
 
 #if 0
 //http://en.wikipedia.org/wiki/List_of_XML_and_HTML_character_entity_references

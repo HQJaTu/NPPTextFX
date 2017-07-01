@@ -40,6 +40,14 @@ struct MICROXML {
 
 #define MX_ATTRIBUTESPECIAL 255 /* This is a state allowing <?xml ... ?>, this is never returned as a value */
 
+#ifndef EXTERNC
+#ifdef __cplusplus
+#define EXTERNC extern "C"
+#else
+#define EXTERNC
+#endif
+#endif
+
 EXTERNC int XMLRead(struct MICROXML *pmx);
 EXTERNC BOOL XMLReadOpen(struct MICROXML *pmx,const TCHAR *fn,DWORD oflags,DWORD shflags);
 EXTERNC void XMLReadClose(struct MICROXML *pmx);

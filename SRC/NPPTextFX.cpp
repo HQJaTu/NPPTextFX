@@ -93,8 +93,7 @@
 #include "PluginInterface.h"
 #include "../minilzo/minilzo.h"
 #include "enable.h"
-#include "TransformsT.h"
-#include "CapsTables.h"
+#include "Transforms.h"
 #include "MicroXML/MicroXML.h"
 
 
@@ -1011,7 +1010,9 @@ EXTERNC int memmovearm(void **dest, size_t *destsz, size_t *destlen, TCHAR *dest
 		if (*dest) {
 			//memset(*dest+*destlen,'@',*destsz-*destlen); *(*dest+*destlen)='%'; // % is \0
 #if NPPDEBUG
-			if (notest) memmove(destp, sourcep, (*destlen) - (sourcep - *dest) + 1); else
+			if (notest)
+				wmemmove(destp, sourcep, (*destlen) - (sourcep - *dest) + 1);
+			else
 #endif
 				memmovetest(destp, sourcep, (*destlen) - (sourcep - *dest) + 1);
 			*destlen += destp - sourcep;
@@ -1029,14 +1030,15 @@ EXTERNC int memmovearm(void **dest, size_t *destsz, size_t *destlen, TCHAR *dest
 // functions are more efficient on huge buffers. If you wish to provide a \0 terminated C-string
 // calculate the strlen() yourself as most c string functions do every time they
 // are called.
-EXTERNC void memcqspnstart(const TCHAR *find,unsigned findl,unsigned *quick) {
-  unsigned q;
-  for(q=0; q<256/(sizeof(unsigned)*8); q++) quick[q]=0; // how many bits can we store in unsigned?
-  while(findl) {
-    quick[(unsigned)*(unsigned char *)find/(sizeof(unsigned)*8)] |= 1<<(unsigned)*(unsigned char *)find%(sizeof(unsigned)*8);
-    find++;
-    findl--;
-  }
+EXTERNC void memcqspnstart(const TCHAR *find, unsigned findl, unsigned *quick) {
+	unsigned q;
+	for (q = 0; q < 256 / (sizeof(unsigned) * 8); q++)
+		quick[q] = 0; // how many bits can we store in unsigned?
+	while (findl) {
+		quick[(unsigned)*(unsigned char *)find / (sizeof(unsigned) * 8)] |= 1 << (unsigned)*(unsigned char *)find % (sizeof(unsigned) * 8);
+		find++;
+		findl--;
+	}
 }
 
 // strcqspn quick version for large find strings used multiple times
@@ -1044,54 +1046,118 @@ EXTERNC void memcqspnstart(const TCHAR *find,unsigned findl,unsigned *quick) {
 // for C strings this is the position of the \0
 // for buffers, this is 1 character beyond the end (same place)
 // returns end when the search fails
-EXTERNC TCHAR *memcqspn(const TCHAR *buf,const TCHAR *end,const unsigned *quick) {
-  if (buf<end) for(; buf<end; buf++) {
-    if (quick[(unsigned)*(unsigned char *)buf/(sizeof(unsigned)*8)] & 1<<((unsigned)*(unsigned char *)buf%(sizeof(unsigned)*8))) return((TCHAR *)buf);
-  } else if (buf>end) for(; buf>end; buf--) {
-    if (quick[(unsigned)*(unsigned char *)buf/(sizeof(unsigned)*8)] & 1<<((unsigned)*(unsigned char *)buf%(sizeof(unsigned)*8))) return((TCHAR *)buf);
-  }
-  return((TCHAR *)end);
+EXTERNC TCHAR *memcqspn(const TCHAR *buf, const TCHAR *end, const unsigned *quick) {
+	if (buf < end) for (; buf < end; buf++) {
+		if (quick[(unsigned)*(unsigned char *)buf / (sizeof(unsigned) * 8)] & 1 << ((unsigned)*(unsigned char *)buf % (sizeof(unsigned) * 8)))
+			return((TCHAR*)buf);
+	}
+	else if (buf > end) for (; buf > end; buf--) {
+		if (quick[(unsigned)*(unsigned char *)buf / (sizeof(unsigned) * 8)] & 1 << ((unsigned)*(unsigned char *)buf % (sizeof(unsigned) * 8)))
+			return((TCHAR*)buf);
+	}
+	return((TCHAR*)end);
 }
 
-EXTERNC TCHAR *memqspn(const TCHAR *buf,const TCHAR *end,const unsigned *quick) {
-  if (buf<end) for(; buf<end; buf++) {
-    if (!(quick[(unsigned)*(unsigned char *)buf/(sizeof(unsigned)*8)] & 1<<((unsigned)*(unsigned char *)buf%(sizeof(unsigned)*8)))) return((TCHAR *)buf);
-  } else if (buf>end) for(; buf>end; buf--) {
-    if (!(quick[(unsigned)*(unsigned char *)buf/(sizeof(unsigned)*8)] & 1<<((unsigned)*(unsigned char *)buf%(sizeof(unsigned)*8)))) return((TCHAR *)buf);
-  }
-  return((TCHAR *)end);
+EXTERNC TCHAR *memqspn(const TCHAR *buf, const TCHAR *end, const unsigned *quick) {
+	if (buf < end) for (; buf < end; buf++) {
+		if (!(quick[(unsigned)*(unsigned char *)buf / (sizeof(unsigned) * 8)] & 1 << ((unsigned)*(unsigned char *)buf % (sizeof(unsigned) * 8))))
+			return((TCHAR*)buf);
+	}
+	else if (buf > end) for (; buf > end; buf--) {
+		if (!(quick[(unsigned)*(unsigned char *)buf / (sizeof(unsigned) * 8)] & 1 << ((unsigned)*(unsigned char *)buf % (sizeof(unsigned) * 8))))
+			return((TCHAR*)buf);
+	}
+	return((TCHAR*)end);
 }
 
 // strcspn: returns the first location in buf of any character in find
 // extra performance derived from pam_mysql.c
-EXTERNC TCHAR *memcspn(const TCHAR *ibuf,const TCHAR *iend,const TCHAR *ifind,unsigned findl) {
-  const TCHAR *find=ifind;
-  TCHAR *buf=(TCHAR *)ibuf,*end=(TCHAR *)iend;
-  switch(findl) {
-  case 0: break;
-  case 1: if (buf<end) {
-	  TCHAR *rv;
-      if ((rv=(TCHAR *)wmemchr(buf,*find,end-buf))) return(rv);
-    } break;
-  case 2: {
-      unsigned char c1=find[0],c2=find[1];
-      for(; buf<end; buf++) if (*buf==c1 || *buf==c2) return((TCHAR *)buf);
-    } break;
-  default: if (buf<end) {
-      const TCHAR *findt,*finde=find+findl;
-      unsigned char min=(unsigned char)-1,max=0,and_mask=(unsigned char)~0,or_mask=0;
-      for(findt=find; findt<finde; findt++) {
-        if (max<*findt) max=*findt;
-        if (min>*findt) min=*findt;
-        and_mask &= *findt;
-        or_mask |= *findt;
-      }
-      for(; buf<end; buf++) {
-        if (*buf>=min && *buf<=max && (*buf & and_mask) == and_mask && (*buf | or_mask) && memchr(find,*buf,findl)) return((TCHAR *)buf);
-      }
-    } break;
-  }
-  return((TCHAR *)end);
+EXTERNC TCHAR *memcspn(const TCHAR *ibuf, const TCHAR *iend, const TCHAR *ifind, unsigned findl) {
+	const TCHAR *find = ifind;
+	TCHAR *buf = (TCHAR *)ibuf, *end = (TCHAR *)iend;
+	unsigned char c1, c2;
+
+	switch (findl) {
+	case 0:
+		break;
+	case 1:
+		if (buf < end) {
+			TCHAR *rv;
+			if ((rv = (TCHAR *)wmemchr(buf, *find, end - buf)))
+				return(rv);
+		}
+		break;
+	case 2:
+		c1 = find[0];
+		c2 = find[1];
+		for (; buf < end; buf++)
+			if (*buf == c1 || *buf == c2)
+				return(buf);
+		break;
+	default:
+		if (buf < end) {
+			const TCHAR *findt, *finde = find + CHARSIZE(findl);
+			unsigned char min = (unsigned char)-1, max = 0, and_mask = (unsigned char)~0, or_mask = 0;
+			for (findt = find; findt < finde; findt++) {
+				if (max < *findt)
+					max = *findt;
+				if (min > *findt)
+					min = *findt;
+				and_mask &= *findt;
+				or_mask |= *findt;
+			}
+			for (; buf < end; buf++) {
+				if (*buf >= min && *buf <= max && (*buf & and_mask) == and_mask && (*buf | or_mask) && wmemchr(find, *buf, findl))
+					return((TCHAR *)buf);
+			}
+		} break;
+	}
+
+	return(end);
+}
+
+EXTERNC char *memcspn_chr(const char *ibuf, const char *iend, const char *ifind, unsigned findl) {
+	const char *find = ifind;
+	char *buf = (char *)ibuf, *end = (char *)iend;
+	unsigned char c1, c2;
+
+	switch (findl) {
+	case 0:
+		break;
+	case 1:
+		if (buf < end) {
+			char *rv;
+			if ((rv = (char *)memchr(buf, *find, end - buf)))
+				return(rv);
+		}
+		break;
+	case 2:
+		c1 = find[0];
+		c2 = find[1];
+		for (; buf < end; buf++)
+			if (*buf == c1 || *buf == c2)
+				return(buf);
+		break;
+	default:
+		if (buf < end) {
+			const char *findt, *finde = find + CHARSIZE(findl);
+			unsigned char min = (unsigned char)-1, max = 0, and_mask = (unsigned char)~0, or_mask = 0;
+			for (findt = find; findt < finde; findt++) {
+				if (max < *findt)
+					max = *findt;
+				if (min > *findt)
+					min = *findt;
+				and_mask &= *findt;
+				or_mask |= *findt;
+			}
+			for (; buf < end; buf++) {
+				if (*buf >= min && *buf <= max && (*buf & and_mask) == and_mask && (*buf | or_mask) && memchr(find, *buf, findl))
+					return((char *)buf);
+			}
+		} break;
+	}
+
+	return(end);
 }
 
 // http://www.ibiblio.org/gferg/ldp/GCC-Inline-Assembly-HOWTO.html
@@ -1168,27 +1234,31 @@ void testmemcspn(void) {
 
 // if buf>end then the search goes backwards
 // full boyer-moore sounds nice but I suspect it can't beat REP SCASB which is also much simpler
-EXTERNC TCHAR *memstr(const TCHAR *buf,const TCHAR *end,const TCHAR *find,unsigned findl) {
-  if (findl>1) {
-    if (buf<=end-findl) {
-      const TCHAR *end2=end-findl;
-      findl--;
-//#error end2 should be used instead of end2, see library for more efficient method
-      while((buf=(TCHAR *)memchrX(buf,end,(unsigned char)*find))<=end2) {
-        if (buf[findl]==find[findl] && (findl==1 || !memcmp(buf+1,find+1,findl-1)) ) return((TCHAR *)buf);
-        buf++;
-      }
-    } else if (buf>=end+findl) {
-      findl--;
-      buf -= findl;
-//#error end2 should be used instead of end2
-      while((buf=(TCHAR *)memchrX(buf,end,(TCHAR)*find))>end) {
-        if (buf[findl]==find[findl] && (findl==1 || !memcmp(buf+1,find+1,findl-1)) ) return((TCHAR *)buf);
-        buf--;
-      }
-    }
-  } else if (findl==1) return memchrX(buf,end,(TCHAR)*find);
-  return((TCHAR *)end);
+EXTERNC TCHAR *memstr(const TCHAR *buf, const TCHAR *end, const TCHAR *find, unsigned findl) {
+	if (findl > 1) {
+		if (buf <= end - findl) {
+			const TCHAR *end2 = end - findl;
+			findl--;
+			//#error end2 should be used instead of end2, see library for more efficient method
+			while ((buf = (TCHAR *)memchrX(buf, end, (unsigned char)*find)) <= end2) {
+				if (buf[findl] == find[findl] && (findl == 1 || !memcmp(buf + 1, find + 1, findl - 1)))
+					return((TCHAR *)buf);
+				buf++;
+			}
+		} else if (buf >= end + findl) {
+			findl--;
+			buf -= findl;
+			//#error end2 should be used instead of end2
+			while ((buf = (TCHAR *)memchrX(buf, end, (TCHAR)*find)) > end) {
+				if (buf[findl] == find[findl] && (findl == 1 || !memcmp(buf + 1, find + 1, findl - 1)))
+					return((TCHAR *)buf);
+				buf--;
+			}
+		}
+	} else if (findl == 1)
+		return memchrX(buf, end, (TCHAR)*find);
+
+	return((TCHAR *)end);
 }
 
 // copies a buf:len to a limited size szDest buffer
@@ -1749,43 +1819,46 @@ terrible performer with str functions. With mem functions MinGW is a superb perf
 */
 
 // Single character CHRT(), returns number replaced
-EXTERNC unsigned memchrtran1(TCHAR *str,unsigned destlen,char cfind,char creplace) {
-  TCHAR *end;
-  unsigned n=0;
+EXTERNC unsigned memchrtran1(TCHAR *str, unsigned destlen, TCHAR cfind, TCHAR creplace) {
+	TCHAR *end;
+	unsigned n = 0;
 
-  if (str && cfind != creplace) for(end=str+destlen; str<end && (str=(TCHAR *)wmemchr(str,cfind,end-str)); ) {
-    *str=creplace;
-    n++;
-  }
-  return(n);
+	if (str && cfind != creplace)
+		for (end = str + destlen; str < end && (str = (TCHAR *)wmemchr(str, cfind, end - str)); ) {
+			*str = creplace;
+			n++;
+		}
+
+	return(n);
 }
 
 // a full implementation of Foxpro's CHRTRAN() function
 // Case Sensitive Replace any character found in
 // *find with the character at the coresponding position in *repl
 // if strlen(repl)<strlen(find) extra chars will be deleted
-EXTERNC unsigned memchrtran(TCHAR **dest, size_t *destsz, size_t *destlen,const TCHAR *find,unsigned lfind,const char *repl,unsigned lrepl) {
+EXTERNC unsigned memchrtran(TCHAR **dest, size_t *destsz, size_t *destlen, const TCHAR *find, unsigned lfind, const TCHAR *repl, unsigned lrepl) {
 #define lold 1
 #define lnew 0
-  TCHAR *d,*end;
-  unsigned n=0,fpn;
-  unsigned quick[256/(sizeof(unsigned)*8)];
+	TCHAR *d, *end;
+	unsigned n = 0, fpn;
+	unsigned quick[256 / (sizeof(unsigned) * 8)];
 
-  if ((d=*dest) && lfind && (lfind!=lrepl || memcmp(find,repl,lfind))) for(memcqspnstart(find,lfind,quick),end=*dest+*destlen,lrepl=strlen(repl); (d=memcqspn(d,end,quick))<end; ) {
-    fpn=(const TCHAR *)wmemchr(find,*d,lfind)-find;
-    if (fpn>=lrepl) {
-      d+=memmovearmtest((void**)dest, destsz, destlen, d+lnew, d+lold, 1);
-	  if (!*dest)
-		  goto failbreak;
-      end=*dest+*destlen;
-    } else {
-      *d = repl[fpn];
-      d++;
-    }
-    n++;
-  }
+	if ((d = *dest) && lfind && (lfind != lrepl || wmemcmp(find, repl, lfind)))
+		for (memcqspnstart(find, lfind, quick), end = *dest + *destlen, lrepl = wcslen(repl); (d = memcqspn(d, end, quick)) < end; ) {
+			fpn = (const TCHAR *)wmemchr(find, *d, lfind) - find;
+			if (fpn >= lrepl) {
+				d += memmovearmtest((void**)dest, destsz, destlen, d + lnew, d + lold, 1);
+				if (!*dest)
+					goto failbreak;
+				end = *dest + *destlen;
+			} else {
+				*d = repl[fpn];
+				d++;
+			}
+			n++;
+		}
 failbreak:
-  return(n);
+	return(n);
 #undef lold
 #undef lnew
 }
@@ -1793,33 +1866,34 @@ failbreak:
 //a full implementation of Foxpro's STRTRAN()
 // a non regex search and replace for c-strings
 EXTERNC unsigned memstrtran(TCHAR **dest, size_t *destsz, size_t *destlen, TCHAR **stopeol, const TCHAR *oldst, unsigned lold, const TCHAR *newst, unsigned lnew) {
-  unsigned n=0;
-  TCHAR *d,*end;
+	unsigned n = 0;
+	TCHAR *d, *end;
 
-  //DWORD tk=GetTickCount();
-  if ((d=*dest) && lold && (lold!=lnew || memcmp(oldst,newst,lold))) {
-    end=d+*destlen;
-    if (stopeol) end=memcspn(d=*stopeol,end, _T("\r\n"),2);
-    while((d=memstr(d,end,oldst,lold))<end) {
-      if (lnew != lold) {
-        unsigned dx;
-        dx=memmovearmtest((void**)dest, destsz, destlen, d+lnew, d+lold, 1);
-		if (!*dest)
-			goto failbreak; // can't test this. using stopeol always has an intentional \0 in the string.
-        d+=dx; // thanks to stopeol we can't use the easier method here
-        end+=dx+lnew-lold;
-      }
-      if (lnew) {
-        memcpy(d,newst,lnew);
-        d+=lnew;
-      }
-      n++;
-    }
-    if (stopeol) *stopeol=d;
-  }
+	//DWORD tk=GetTickCount();
+	if ((d = *dest) && lold && (lold != lnew || wmemcmp(oldst, newst, lold))) {
+		end = d + *destlen;
+		if (stopeol)
+			end = memcspn(d = *stopeol, end, _T("\r\n"), 2);
+		while ((d = memstr(d, end, oldst, lold)) < end) {
+			if (lnew != lold) {
+				unsigned dx;
+				dx = memmovearmtest((void**)dest, destsz, destlen, d + lnew, d + lold, 1);
+				if (!*dest)
+					goto failbreak; // can't test this. using stopeol always has an intentional \0 in the string.
+				d += dx; // thanks to stopeol we can't use the easier method here
+				end += dx/CHARSIZE(1) + lnew - lold;
+			}
+			if (lnew) {
+				wmemcpy(d, newst, lnew);
+				d += lnew;
+			}
+			n++;
+		}
+		if (stopeol) *stopeol = d;
+	}
 failbreak:
-  //MessageBoxFree(g_nppData._nppHandle,smprintf("Tick Count: %u",GetTickCount()-tk),PLUGIN_NAME, MB_OK|MB_ICONSTOP);
-  return(n);
+	//MessageBoxFree(g_nppData._nppHandle,smprintf("Tick Count: %u",GetTickCount()-tk),PLUGIN_NAME, MB_OK|MB_ICONSTOP);
+	return(n);
 }
 
 //strchrstrans: Replaces any in a set of single characters with corresponding strings
@@ -1886,53 +1960,54 @@ failbreak:
 // Some transforms are more complicated than others. func=0:memstrtran, func=1:strchrtrans
 // Not Binary Ready
 EXTERNC unsigned prepostpendlines(TCHAR **dest, size_t *destsz, size_t *destlen, int func,
-	const char *begin, unsigned lbegin, const char *end, unsigned lend,
-	const TCHAR *oldst, unsigned loldst, const TCHAR *repl, unsigned lrepl) {
+										const TCHAR *begin, unsigned lbegin, const TCHAR *end, unsigned lend,
+										const TCHAR *oldst, unsigned loldst, const TCHAR *repl, unsigned lrepl)
+{
 #define lold 0
-  unsigned n=0;
-  TCHAR *d,*detent;
-  int indent,indent2;
+	unsigned n = 0;
+	TCHAR *d, *detent;
+	int indent, indent2;
 
-  if ((d=*dest) && loldst) for (indent=-1; *d; ) {
-    while(*d=='\r' || *d=='\n') d++;
-    if (indent<0)
-		for(indent=0; isspace(*d); d++, indent++); // calc first indent
-    else
-		for(indent2=indent; indent2 && isspace(*d); d++, indent2--);  // all future indents are at the same place as the first
-    if (!*d) break;
+	if ((d = *dest) && loldst) for (indent = -1; *d; ) {
+		while (*d == '\r' || *d == '\n') d++;
+		if (indent < 0)
+			for (indent = 0; isspace(*d); d++, indent++); // calc first indent
+		else
+			for (indent2 = indent; indent2 && isspace(*d); d++, indent2--);  // all future indents are at the same place as the first
+		if (!*d) break;
 #define newst begin
 #define lnew lbegin
-    if (lnew != lold) {
-      d+=memmovearmtest((void**)dest, destsz, destlen, d+lnew, d+lold, 1);
-	  if (!*dest)
-		  goto failbreak;
-    }
-    if (lnew) {
-      memcpy(d,newst,lnew);
-      d+=lnew;
-    }
+		if (lnew != lold) {
+			d += memmovearmtest((void**)dest, destsz, destlen, d + lnew, d + lold, 1);
+			if (!*dest)
+				goto failbreak;
+		}
+		if (lnew) {
+			memcpy(d, newst, lnew);
+			d += lnew;
+		}
 #undef lnew
 #undef newst
-    detent=d; // this ensures the optimizer can assign a register to d, &variables are always placed on the stack
-    n+=(!func?memstrtran(dest,destsz,destlen,&detent,oldst,loldst,repl,lrepl):
-         strchrstrans(dest,destsz,destlen,&detent,oldst,loldst,repl));
-    d=detent;
-    if (!*dest) goto failbreak;
+		detent = d; // this ensures the optimizer can assign a register to d, &variables are always placed on the stack
+		n += (!func ? memstrtran(dest, destsz, destlen, &detent, oldst, loldst, repl, lrepl) :
+			strchrstrans(dest, destsz, destlen, &detent, oldst, loldst, repl));
+		d = detent;
+		if (!*dest) goto failbreak;
 #define newst end
 #define lnew lend
-    if (lnew != lold) {
-      d+=memmovearmtest((void**)dest,destsz,destlen,d+lnew,d+lold,1); if (!*dest) goto failbreak;
-    }
-    if (lnew) {
-      memcpy(d,newst,lnew);
-      d+=lnew;
-    }
+		if (lnew != lold) {
+			d += memmovearmtest((void**)dest, destsz, destlen, d + lnew, d + lold, 1); if (!*dest) goto failbreak;
+		}
+		if (lnew) {
+			memcpy(d, newst, lnew);
+			d += lnew;
+		}
 #undef lnew
 #undef newst
-    n++;
-  }
+		n++;
+	}
 failbreak:
-  return(n);
+	return(n);
 #undef lold
 }
 
@@ -1942,10 +2017,10 @@ unsigned g_uPass; // this is only used when rewraptest is being tested by the te
 
 // textwid=0 to unwrap completely, 1 or other invalid width for default of 72
 // All removed: multiple whitespace, non space whitespace including tabs,
-//   newlines not conforming to eoltype, extra newlines, more than double lines
+//   newlines not conforming to eolType, extra newlines, more than double lines
 // unwrapping will break to another paragraph at a double line, \r\n\r\n, \r\r, or \n\n
 // (It may look easy now but this function took 3 straight days to get it working right.)
-// eoltype is retrieved from N++ and is used with eoltypes[]
+// eolType is retrieved from N++ and is used with eoltypes[]
 // new feature: wrap text looks at the spacing of the first line to space other lines
 // new feature: wrap avoids line comments
 // new feature: indent properly for bullets
@@ -1995,7 +2070,7 @@ EXTERNC unsigned rewraptext(TCHAR **dest, size_t *destsz, size_t *destlen, unsig
           flags &= ~FLAG_WASSPACE;
           break;
         }
-        if ((flags&FLAG_QUIT) || (tw && !(flags&FLAG_WASSPACE) && (unsigned)(d-dp)>=(((unsigned)(end-dp)<tw)?end-dp:tw))) { // **problem** was sln
+        if ((flags&FLAG_QUIT) || (tw && !(flags&FLAG_WASSPACE) && (unsigned)(d-dp)>=(((unsigned)(end-dp)<tw)?end-dp:tw))) { // **problem** was textBufferLength
           if (flags&FLAG_QUIT) {
             if (lastspace && (flags&FLAG_WASSPACE)) d=lastspace;
             else lastspace=d;
@@ -2166,10 +2241,26 @@ failbreak:
 }
 
 // These work for Notepad++ now, later they will be modified to make the code compatible with Code::Blocks by calling currentEdit->WndProc()
-#define SENDMSGTOCED(which,mesg,wpm,lpm) SendMessage(((which)?g_nppData._scintillaSecondHandle:g_nppData._scintillaMainHandle),mesg,(WPARAM)(wpm),(LPARAM)(lpm))
+//#define SENDMSGTOCED(which,mesg,wpm,lpm) SendMessage(((which)?g_nppData._scintillaSecondHandle:g_nppData._scintillaMainHandle),mesg,(WPARAM)(wpm),(LPARAM)(lpm))
+#define SENDMSGTOCED(which,mesg,wpm,lpm) (*gScintillaMessageSender)(which, mesg, (WPARAM)(wpm), (LPARAM)(lpm))
 #define INT_CURRENTEDIT int currentEdit
 #define GET_CURRENTEDIT SendMessage(g_nppData._nppHandle, NPPM_GETCURRENTSCINTILLA, 0, (LPARAM)&currentEdit)
 #define INVALID_CURRENT_EDIT (-1)
+
+// Injectable message sender
+// was: SENDMSGTOCED(which,mesg,wpm,lpm)
+LRESULT SendScintillaMessage(BOOL which, UINT Msg, WPARAM wParam,LPARAM lParam)
+{
+	HWND target;
+	if (which) {
+		target = g_nppData._scintillaSecondHandle;
+	} else {
+		target = g_nppData._scintillaMainHandle;
+	}
+
+	return SendMessage(target, Msg, wParam, lParam);
+}
+LRESULT(*gScintillaMessageSender)(BOOL, UINT, WPARAM, LPARAM) = &SendScintillaMessage;	// The default, can be overridden.
 
 // dest = space(n)+source
 // like sprintf(dest,"%-*s%s",n,"",source) returns number of characters written
@@ -2536,7 +2627,7 @@ EXTERNC void strmstrinit(struct _MSTR *msearch,unsigned nsearch,unsigned *cs/*,i
 // be able to implement.
 // Returns: 0,p=NULL if not found, or mstring position 1...nsearch-1,p=location if found
 //
-// We could eliminate sln by padding the string with as many \0 as the longest substring
+// We could eliminate textBufferLength by padding the string with as many \0 as the longest substring
 // This would eliminate the necessity of string scan to calculte strlen().
 // The trouble is that the caller has to manage and possibly move the padded \0's and this may
 // be more trouble than the REPNZ SCASB that calculates strlen(). Often times
@@ -2574,119 +2665,122 @@ EXTERNC TCHAR *strmstr(TCHAR *str, TCHAR *end, unsigned *mno,struct _MSTR *msear
 
 // bug: the editor can double certain line breaks during a paste, this code can't fix it.
 // when > is used as data like ">", this code doesn't catch it, and I may not fix it because it is improper HTML
-EXTERNC unsigned stripHTMLtags(TCHAR **dest, size_t *destsz, size_t *destlen, const char *snotabs) {
-//#define ncase 1
-  unsigned n=0,lold=0,lnew=0,mno;
-  TCHAR *d,*dp,*newst=NULL,*lastspace,*lastnewline,*end;
-  TCHAR tempst[2];
-  TCHAR space[] = L" ";
-  TCHAR tab[] = L"\t";
-  unsigned intextarea;
-  int notabs=(*snotabs=='n');
-  unsigned quick[512];
+EXTERNC unsigned stripHTMLtags(TCHAR **dest, size_t *destsz, size_t *destlen, const TCHAR *snotabs) {
+	//#define ncase 1
+	unsigned n = 0, lold = 0, lnew = 0, mno;
+	TCHAR *d, *dp, *newst = NULL, *lastspace, *lastnewline, *end;
+	TCHAR tempst[2];
+	TCHAR space[] = L" ";
+	TCHAR tab[] = L"\t";
+	unsigned intextarea;
+	int notabs = (*snotabs == 'n');
+	unsigned quick[512];
 
-  if (*dest) {
-    strmstrinit(g_mstring,NELEM(g_mstring),quick);
-    for(lastnewline=lastspace=d=*dest,end=d+*destlen,intextarea=0; (d=strmstr(d,end,&mno,g_mstring,quick))<end; ) {
-      switch(g_mstring[mno].rv) {
-      case 0: // & general
-        dp=(TCHAR *)wmemchr(d,';',end-d);
-        if (!dp || dp-d>8 || !isdigit(d[2]) || (int)(lnew=wcstol(d+2,NULL,0))<0 || lnew>255) {
-          d++;
-          continue;
-        } else {
-          lold=dp-d+1;
-          newst=tempst;
-          newst[0]=lnew;
-          newst[1]='\0';
-          lnew=1;
-        }
-        break;
-      case 1: // &quot;
-        lold=g_mstring[mno].len;
-        newst=g_mstring[mno].string+lold+1;
-        lnew=wcslen(newst);
-        break;
-      case 2: // <!-- stuff to delete -->
-        lold=wcslen(g_mstring[mno].string+g_mstring[mno].len+1);
-        newst=g_mstring[mno].string+g_mstring[mno].len+1; // dummy variable
-        dp=memistr(d,end,newst,wcslen(newst));
-        lnew=0;
-        goto delcom;
-      case 3: // <tag that generates newline
-        newst=L"\r\n";
-		lnew=2;
-        lastspace=d+lnew;
-        lastnewline=d+lnew;
-        goto bktcom;
-      case 4: // <tag that generates tab
-        newst=notabs?space:tab;
-        lnew=1;
-        goto bktcom;
-      case 5: // <tag that indicates we are entering a preformatted section
-        intextarea++;
-        lnew=0;
-        goto bktcom;
-      case 6: // <tag that indicates we are leaving a preformatted section
-        if (intextarea) intextarea--;
-        lnew=0;
-bktcom:
-        lold=1;
-        if (!(dp=(TCHAR *)wmemchr(d,'>',end-d))) continue;
+	if (*dest) {
+		strmstrinit(g_mstring, NELEM(g_mstring), quick);
+		for (lastnewline = lastspace = d = *dest, end = d + *destlen, intextarea = 0; (d = strmstr(d, end, &mno, g_mstring, quick)) < end; ) {
+			switch (g_mstring[mno].rv) {
+			case 0: // & general
+				dp = (TCHAR *)wmemchr(d, ';', end - d);
+				if (!dp || dp - d > 8 || !isdigit(d[2]) || (int)(lnew = wcstol(d + 2, NULL, 0)) < 0 || lnew > 255) {
+					d++;
+					continue;
+				}
+				else {
+					lold = dp - d + 1;
+					newst = tempst;
+					newst[0] = lnew;
+					newst[1] = '\0';
+					lnew = 1;
+				}
+				break;
+			case 1: // &quot;
+				lold = g_mstring[mno].len;
+				newst = g_mstring[mno].string + lold + 1;
+				lnew = wcslen(newst);
+				break;
+			case 2: // <!-- stuff to delete -->
+				lold = wcslen(g_mstring[mno].string + g_mstring[mno].len + 1);
+				newst = g_mstring[mno].string + g_mstring[mno].len + 1; // dummy variable
+				dp = memistr(d, end, newst, wcslen(newst));
+				lnew = 0;
+				goto delcom;
+			case 3: // <tag that generates newline
+				newst = L"\r\n";
+				lnew = 2;
+				lastspace = d + lnew;
+				lastnewline = d + lnew;
+				goto bktcom;
+			case 4: // <tag that generates tab
+				newst = notabs ? space : tab;
+				lnew = 1;
+				goto bktcom;
+			case 5: // <tag that indicates we are entering a preformatted section
+				intextarea++;
+				lnew = 0;
+				goto bktcom;
+			case 6: // <tag that indicates we are leaving a preformatted section
+				if (intextarea) intextarea--;
+				lnew = 0;
+			bktcom:
+				lold = 1;
+				if (!(dp = (TCHAR *)wmemchr(d, '>', end - d))) continue;
 
-delcom:
-        if (dp==end) {
-          d=end;
-          continue;
-        } else {
-          lold+=dp-d;
-        }
-        break;
-      case 7: // space without return
-      case 8: // return
-        lold=memspn(d,end,L"\r\n\t ",5)-d; // 5 includes an occasional \0
-        if (intextarea) {
-          d+=lold;
-          continue;
-        }
-        if (d<=lastspace || d<=lastnewline/* || g_mstring[mno].rv==8*/) {
-          lnew=0;
-        } else {
-          newst=L" ";
-          lnew=1;
-          lastspace=d+1;
-        }
-        if (g_mstring[mno].rv==8) lastnewline=d;
-        break;
-      }
-      if (lnew != lold) {
-        d += memmovearmtest((void**)dest, destsz, destlen, d+lnew, d+lold, 1);
-		if (!*dest)
-			goto failbreak;
-        end=*dest+*destlen;
-      }
-      if (lnew) {
-        memcpy(d,newst,lnew);
-        d+=lnew;
-      }
-      n++;
-    }
-failbreak:
-    strmstrclose(g_mstring);
-  }
-  return(n);
+			delcom:
+				if (dp == end) {
+					d = end;
+					continue;
+				}
+				else {
+					lold += dp - d;
+				}
+				break;
+			case 7: // space without return
+			case 8: // return
+				lold = memspn(d, end, L"\r\n\t ", 5) - d; // 5 includes an occasional \0
+				if (intextarea) {
+					d += lold;
+					continue;
+				}
+				if (d <= lastspace || d <= lastnewline/* || g_mstring[mno].rv==8*/) {
+					lnew = 0;
+				}
+				else {
+					newst = L" ";
+					lnew = 1;
+					lastspace = d + 1;
+				}
+				if (g_mstring[mno].rv == 8) lastnewline = d;
+				break;
+			}
+			if (lnew != lold) {
+				d += memmovearmtest((void**)dest, destsz, destlen, d + lnew, d + lold, 1);
+				if (!*dest)
+					goto failbreak;
+				end = *dest + *destlen;
+			}
+			if (lnew) {
+				memcpy(d, newst, lnew);
+				d += lnew;
+			}
+			n++;
+		}
+	failbreak:
+		strmstrclose(g_mstring);
+	}
+	return(n);
 }
 
 // returns the number of changes made
-EXTERNC unsigned mymemset(TCHAR *s,char c,unsigned num){
-  unsigned n=0;
-  for(; num; num--, s++) {
-    if (*s != c) {
-      *s=c;
-      n++;
-    }
-  }
-  return(n);
+EXTERNC unsigned mymemset(TCHAR *s, char c, unsigned num) {
+	unsigned n = 0;
+	for (; num; num--, s++) {
+		if (*s != c) {
+			*s = c;
+			n++;
+		}
+	}
+	return(n);
 }
 
 // Search through a string for quote symbols
@@ -2896,7 +2990,7 @@ EXTERNC unsigned reindentcode(TCHAR **dest, size_t *destsz, size_t *destlen, int
     case 5: // end of line
       if (*(dp-1)=='\\' && (*d=='#' || tempindent)) tempindent=2;
       dp+=(*dp=='\r' && dp[1]=='\n')?2:1;
-      for(d=dp; *dp=='\t'; dp++); // d=bol, dp=curpos
+      for(d=dp; *dp=='\t'; dp++); // d=bol, dp=currentPos
       lold=dp-d;
       lnew=bktct+parenct+(parenct?1:0)+(tempindent>1?1:0); // indent conditionals separated by lines
       if (*dp!=':') for (label=dp; *label; label++) {
@@ -2951,47 +3045,47 @@ failbreak:
 
 // This removes all non quoted text from str. The quoted text segments that remain are separated by newst
 // style is defined by findnextquote()
-EXTERNC unsigned killwhitenonqt(TCHAR *dest,unsigned *destlen,unsigned style) {
+EXTERNC unsigned killwhitenonqt(TCHAR *dest, size_t *destlen, unsigned style) {
 #define lnew 0
-  unsigned n=0,lold,mno; unsigned quick[512];
-  TCHAR *d,*end;
+	unsigned n = 0, lold, mno; unsigned quick[512];
+	TCHAR *d, *end;
 
-  if (*dest) {
-    strmstrinit(g_cstring,NELEM(g_cstring),quick);
-    d=dest+ wcscspn(dest,L"\r\n\t ");
-    end=dest+*destlen;
-    while((d=strmstr(d,end,&mno,g_cstring,quick))<end) switch(g_cstring[mno].rv) {
-    case 1: // C++ comment
-      d=memcspn(d,end,L"\r\n",2); // this does not handle \ comment continuations which shouldn't be used anways
-      break;
-    case 2: /* C comment */
-      d=memstr(d+2,end,g_cstring[mno].string+g_cstring[mno].len+1,wcslen(g_cstring[mno].string+g_cstring[mno].len+1));
-      if (d<end) d+=2;
-      //else d= dest + *destlen;
-      //d+=2;
-      break;
-    case 3: // quoted string
-      d = findnextquote(d,end,style);
-      break;
-    case 5: // end of line
-      d=memspn(d,end,L"\r\n\t ",4);
-      break;
-    case 10: // space or tab
-      lold=memspn(d,end,L"\t ",2)-d;
-      if (lnew != lold) {
-        memmovetest(d+lnew,d+lold,*destlen-(d-dest)-lold+1);
-        *destlen += lnew-lold;
-        end += lnew-lold;
-        n++;
-      }
-      break;
-    default:
-      d++;
-      break;
-    }
-    strmstrclose(mstring);
-  }
-  return(n);
+	if (*dest) {
+		strmstrinit(g_cstring, NELEM(g_cstring), quick);
+		d = dest + wcscspn(dest, _T("\r\n\t "));
+		end = dest + *destlen;
+		while ((d = strmstr(d, end, &mno, g_cstring, quick)) < end) switch (g_cstring[mno].rv) {
+		case 1: // C++ comment
+			d = memcspn(d, end, _T("\r\n"), 2); // this does not handle \ comment continuations which shouldn't be used anways
+			break;
+		case 2: /* C comment */
+			d = memstr(d + 2, end, g_cstring[mno].string + g_cstring[mno].len + 1, wcslen(g_cstring[mno].string + g_cstring[mno].len + 1));
+			if (d < end)
+				d += 2;
+			break;
+		case 3: // quoted string
+			d = findnextquote(d, end, style);
+			break;
+		case 5: // end of line
+			d = memspn(d, end, _T("\r\n\t "), 4);
+			break;
+		case 10: // space or tab
+			lold = memspn(d, end, _T("\t "), 2) - d;
+			if (lnew != lold) {
+				memmovetest(d + lnew, d + lold, *destlen - (d - dest) - lold + 1);
+				*destlen += lnew - lold;
+				end += lnew - lold;
+				n++;
+			}
+			break;
+		default:
+			d++;
+			break;
+		}
+		strmstrclose(mstring);
+	}
+
+	return(n);
 #undef lnew
 }
 
@@ -3109,41 +3203,49 @@ failbreak:
 }
 
 // adds up all the numbers separated by any non number characters
-EXTERNC unsigned addup(char *str) {
-  double sum=0;
+EXTERNC unsigned addup(TCHAR *str) {
+	double sum = 0;
 
-  if (str) do {
-    switch(*str) {
-    case '\0':
-      MessageBoxFree(0,smprintf(_T("Sum=%#lg"), sum),_T(PLUGIN_NAME), MB_OK|MB_ICONINFORMATION);
-      break;
-    case '+':
-    case '-':
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
-      sum+=strtod(str,&str);
-    default:
-      str++;
-      continue;
-    }
-    break;
-  } while(1);
-  return(0);
+	if (str) do {
+		switch (*str) {
+		case '\0':
+			MessageBoxFree(0, smprintf(_T("Sum=%#lg"), sum), _T(PLUGIN_NAME), MB_OK | MB_ICONINFORMATION);
+			break;
+		case '+':
+		case '-':
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9':
+			sum += wcstod(str, &str);
+		default:
+			str++;
+			continue;
+		}
+	} while (1);
+
+	return(0);
 }
 
-EXTERNC unsigned zapchar(char *str,unsigned destlen,char ch,int nonprint) {
-  char *end;
-  int n=0;
-  if (str) for(end=str+destlen;str<end;str++) if (*str != '\r' && *str!='\n' && *str!='\t' && *str!=ch && (!nonprint || !isprint(*str))) {*str=ch; n++;}
-  return(n);
+EXTERNC unsigned zapchar(TCHAR *str, unsigned destlen, TCHAR ch, int nonprint) {
+	TCHAR *end;
+	int n = 0;
+	if (str)
+		for (end = str + destlen; str < end; str++) {
+			BOOL isPrintable = iswprint(*str);
+			if (*str != '\r' && *str != '\n' && *str != '\t' && *str != ch && (!nonprint || !iswprint(*str))) {
+				*str = ch;
+				n++;
+			}
+		}
+
+	return(n);
 }
 
 EXTERNC unsigned submitW3C(TCHAR **dest, size_t *destsz, size_t *destlen, const TCHAR *fn, const TCHAR *fno) {
@@ -3225,7 +3327,7 @@ TCHAR *strcpyline(TCHAR *dest, TCHAR *src) {
 // new feature: numeric sort
 // new feature: ignore leading spaces,tabs
 EXTERNC unsigned strqsortlines(TCHAR **dest, size_t *destsz, size_t *destlen, int nocase, int ascending, unsigned column) {
-  unsigned n=0/*,chn*/,lineno,lineno2;
+  unsigned n=0/*,bytes*/,lineno,lineno2;
   size_t linessz;
   TCHAR *d,*dp,*nstr;
   TCHAR **lines=NULL;
@@ -3399,48 +3501,49 @@ failbreak:
 // http://forum.pspad.com/read.php?f=2&i=1404&t=1404
 // new feature: hex editor in words
 // new feature: printable hex only (assuming that Notepad++ would try to print characters<32)
-EXTERNC unsigned tohex(TCHAR **dest,unsigned *destsz,unsigned *destlen,unsigned offset,unsigned width) {
-  unsigned n=0,bufl;
-  TCHAR *d,*end;
-  TCHAR buf[128]; //,hex[3];
-  unsigned counter8;
-  if (*dest && width >= 16 && width<=sizeof(buf)) {
-	TCHAR *newdest=NULL;
-	size_t newsz = *destsz * 5, newlen = 0;
-    d=*dest;
-    end=*dest+*destlen;
-    bufl=0;
-    counter8=7;
-    while(d<end) {
-      if (!bufl) sarmprintf(&newdest, &newsz, &newlen, _T("\"%9.9X  "), offset+n);
-      sarmprintf(&newdest, &newsz, &newlen,(counter8 || bufl==width-1) ? _T("%2.2X "): _T("%2.2X-"), *(unsigned char *)d);
-      if (counter8) counter8--; else counter8=7;
-      buf[bufl++]=(*d=='\r' || *d=='\n' || *d=='\t' || *d=='"')?'.':*d;
-      d++;
-      n++;
-      if (bufl == width || d>=end) {
-        memsetarmsafe(&newdest, &newsz, &newlen,' ',(width-bufl)*3+2, _T("tohex"));
-        memsetarmsafe(&newdest, &newsz, &newlen,'|',1, _T("tohex"));
-        memcpyarmsafe((void**)&newdest, &newsz, &newlen,buf,bufl, _T("tohex"));
-        if (bufl<width) memsetarmsafe(&newdest, &newsz, &newlen,' ',width-bufl, _T("tohex"));
-        bufl=0;
-        strcpyarmsafe(&newdest, &newsz, &newlen, _T("|\"\r\n"), _T("tohex"));
-      }
-    }
-    if (n) {
-      memsetarmsafe(&newdest, &newsz, &newlen,'\0',1, _T("tohex"));
-	  newlen--;
-//freebreak:
-      freesafe(*dest, _T("tohex"));
-      if (!(*dest=newdest))
-		  n=0;
-      *destsz=newsz;
-      *destlen=newlen;
-    } else if (newdest)
-		freesafe(newdest, _T("tohex"));
-  }
-//failbreak:
-  return(n);
+EXTERNC unsigned tohex(TCHAR **dest, size_t *destsz, size_t *destlen, unsigned offset, unsigned width) {
+	unsigned n = 0, bufl;
+	TCHAR *d, *end;
+	TCHAR buf[128]; //,hex[3];
+	unsigned counter8;
+	if (*dest && width >= 16 && width <= sizeof(buf)) {
+		TCHAR *newdest = NULL;
+		size_t newsz = *destsz * 5, newlen = 0;
+		d = *dest;
+		end = *dest + *destlen;
+		bufl = 0;
+		counter8 = 7;
+		while (d < end) {
+			if (!bufl) sarmprintf(&newdest, &newsz, &newlen, _T("\"%9.9X  "), offset + n);
+			sarmprintf(&newdest, &newsz, &newlen, (counter8 || bufl == width - 1) ? _T("%2.2X ") : _T("%2.2X-"), *(unsigned char *)d);
+			if (counter8) counter8--; else counter8 = 7;
+			buf[bufl++] = (*d == '\r' || *d == '\n' || *d == '\t' || *d == '"') ? '.' : *d;
+			d++;
+			n++;
+			if (bufl == width || d >= end) {
+				memsetarmsafe(&newdest, &newsz, &newlen, ' ', (width - bufl) * 3 + 2, _T("tohex"));
+				memsetarmsafe(&newdest, &newsz, &newlen, '|', 1, _T("tohex"));
+				memcpyarmsafe((void**)&newdest, &newsz, &newlen, buf, bufl, _T("tohex"));
+				if (bufl < width) memsetarmsafe(&newdest, &newsz, &newlen, ' ', width - bufl, _T("tohex"));
+				bufl = 0;
+				strcpyarmsafe(&newdest, &newsz, &newlen, _T("|\"\r\n"), _T("tohex"));
+			}
+		}
+		if (n) {
+			memsetarmsafe(&newdest, &newsz, &newlen, '\0', 1, _T("tohex"));
+			newlen--;
+			//freebreak:
+			freesafe(*dest, _T("tohex"));
+			if (!(*dest = newdest))
+				n = 0;
+			*destsz = newsz;
+			*destlen = newlen;
+		}
+		else if (newdest)
+			freesafe(newdest, _T("tohex"));
+	}
+	//failbreak:
+	return(n);
 }
 
 EXTERNC unsigned fromhex(TCHAR **dest, size_t *destsz, size_t *destlen, unsigned offset) {
@@ -3568,52 +3671,54 @@ failbreak:
 }
 
 // http://forum.pspad.com/read.php?f=2&i=4073&t=4073
-EXTERNC unsigned uudecode(TCHAR **dest,unsigned *destsz,unsigned *destlen) {
-  unsigned n=0; //,val;
-  TCHAR *d,*end,*cp;
-  TCHAR collector[3];
-  unsigned linelen;
-  if (*dest) {
-	TCHAR *newdest=NULL;
-	size_t newsz=*destsz/5, newlen=0;
-    d=(TCHAR *)(*dest);
-    end=(TCHAR *)(*dest)+*destlen;
-    while(d<end) {
-      if (*d>=33 && *d<='M') {
-        for(linelen=*d-32,d++; linelen;  ) {
-          cp=collector;
-          *cp=((*d-32)&0x3F)<<2; // 6 bits
-          d++;
-          *cp |= ((*d-32)>>4)&0x3; // +2 bits leaving 4 bits
-          cp++;
-          *cp=((*d-32)&0xF)<<4; // 4 bits
-          d++;
-          *cp |= ((*d-32)>>2)&0xF; // +4 bits leaving 2
-          cp++;
-          *cp=((*d-32)&0x3)<<6; // 2 bits
-          d++;
-          *cp |= ((*d-32)&0x3F); // +6 bits
-          d++;
-          memcpyarmsafe((void**)&newdest, &newsz, &newlen, collector, (linelen > 3 ? 3 : linelen), _T("uudecode"));
-          n++;
-          linelen=linelen>3 ? linelen-3 : 0;
-        }
-      }
-      d=memcspn(d,end, L"\r\n",2);
-      while(d<end && (*d=='\r' || *d=='\n')) d++;
-    }
-    if (n) {
-//freebreak:
-      freesafe(*dest, _T("uudecode"));
-      if (!(*dest=newdest))
-		  n=0;
-      *destsz=newsz;
-      *destlen=newlen;
-    } else if (newdest)
-		freesafe(newdest, _T("uudecode"));
-  }
-//failbreak:
-  return(n);
+EXTERNC unsigned uudecode(TCHAR **dest, size_t *destsz, size_t *destlen) {
+	unsigned n = 0; //,val;
+	TCHAR *d, *end, *cp;
+	TCHAR collector[3];
+	unsigned linelen;
+	if (*dest) {
+		TCHAR *newdest = NULL;
+		size_t newsz = *destsz / 5, newlen = 0;
+		d = (TCHAR *)(*dest);
+		end = (TCHAR *)(*dest) + *destlen;
+		while (d < end) {
+			if (*d >= 33 && *d <= 'M') {
+				for (linelen = *d - 32, d++; linelen; ) {
+					cp = collector;
+					*cp = ((*d - 32) & 0x3F) << 2; // 6 bits
+					d++;
+					*cp |= ((*d - 32) >> 4) & 0x3; // +2 bits leaving 4 bits
+					cp++;
+					*cp = ((*d - 32) & 0xF) << 4; // 4 bits
+					d++;
+					*cp |= ((*d - 32) >> 2) & 0xF; // +4 bits leaving 2
+					cp++;
+					*cp = ((*d - 32) & 0x3) << 6; // 2 bits
+					d++;
+					*cp |= ((*d - 32) & 0x3F); // +6 bits
+					d++;
+					memcpyarmsafe((void**)&newdest, &newsz, &newlen, collector, (linelen > 3 ? 3 : linelen), _T("uudecode"));
+					n++;
+					linelen = linelen > 3 ? linelen - 3 : 0;
+				}
+			}
+			d = memcspn(d, end, L"\r\n", 2);
+			while (d < end && (*d == '\r' || *d == '\n'))
+				d++;
+		}
+		if (n) {
+			//freebreak:
+			freesafe(*dest, _T("uudecode"));
+			if (!(*dest = newdest))
+				n = 0;
+			*destsz = newsz;
+			*destlen = newlen;
+		}
+		else if (newdest)
+			freesafe(newdest, _T("uudecode"));
+	}
+	//failbreak:
+	return(n);
 }
 
 TCHAR g_pszBase64[] = _T("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
@@ -3679,28 +3784,34 @@ EXTERNC unsigned base64decode(TCHAR **dest, size_t *destsz, size_t *destlen) {
 }
 
 EXTERNC unsigned converteol(TCHAR **dest, size_t *destsz, size_t *destlen, unsigned eoltype) {
-  unsigned n=0,lold,lnew;
-  TCHAR *d,*end;
-  if (*dest) {
-    if (eoltype>=NELEM(eoltypes)) eoltype=NELEM(eoltypes)-1;
-    lnew=wcslen(eoltypes[eoltype]);
-    d=*dest; end=*dest+*destlen;
-    goto bottest; do {
-        lold=(*d=='\r' && d[1]=='\n')?2:1;
-      if (lnew != lold) {
-        d+=memmovearmtest((void**)dest, destsz, destlen, d+lnew, d+lold, 1);
-		if (!*dest) goto failbreak;
-        end=*dest+*destlen;
-      }
-      memcpy(d,eoltypes[eoltype],lnew);
-      d+=lnew;
-      n++;
-bottest:
-        d=memcspn(d,end,L"\r\n",2);
-    } while(d<end);
-  }
+	unsigned n = 0, lold, lnew;
+	TCHAR *d, *end;
+
+	if (*dest) {
+		if (eoltype >= NELEM(eoltypes))
+			eoltype = NELEM(eoltypes) - 1;
+		lnew = wcslen(eoltypes[eoltype]);
+		d = *dest;
+		end = *dest + *destlen;
+		goto bottest;
+		do {
+			lold = (*d == '\r' && d[1] == '\n') ? 2 : 1;
+			if (lnew != lold) {
+				d += memmovearmtest((void**)dest, destsz, destlen, d + lnew, d + lold, 1);
+				if (!*dest)
+					goto failbreak;
+				end = *dest + *destlen;
+			}
+			memcpy(d, eoltypes[eoltype], lnew);
+			d += lnew;
+			n++;
+		bottest:
+			d = memcspn(d, end, L"\r\n", 2);
+		} while (d < end);
+	}
+
 failbreak:
-  return(n);
+	return(n);
 }
 
 EXTERNC unsigned insertlinenumbers(TCHAR **dest, size_t *destsz, size_t *destlen, unsigned lno) {
@@ -3826,52 +3937,55 @@ failbreak:
 #undef lold
 }
 
-EXTERNC unsigned trimtrailingspace(TCHAR *dest,unsigned *destlen) {
+EXTERNC unsigned trimtrailingspace(TCHAR *dest, size_t *destlen) {
 #define lnew 0
-  unsigned n=0,lold;
-  TCHAR *d,*dp,*end;
-  if (dest) {
-    for(d=dest,end=dest+*destlen;d<end; ) {
-      dp=d;
-      d=memcspn(d,end,L"\r\n",2);
-      for(d--,lold=0; d>=dp && *d==' '; d--, lold++);
-      d++;
-      if (lnew != lold) {
-        memmovetest(d+lnew,d+lold,*destlen-(d-dest)-lold+1);
-        *destlen += lnew-lold;
-        end += lnew-lold;
-        n++;
-      }
-      d=memspn(d,end,L"\r\n",2);
-    }
-  }
-  return(n);
+	unsigned n = 0, lold;
+	TCHAR *d, *dp, *end;
+
+	if (dest) {
+		for (d = dest, end = dest + *destlen; d < end; ) {
+			dp = d;
+			d = memcspn(d, end, L"\r\n", 2);
+			for (d--, lold = 0; d >= dp && *d == ' '; d--, lold++);
+			d++;
+			if (lnew != lold) {
+				memmovetest(d + lnew, d + lold, *destlen - (d - dest) - lold + 1);
+				*destlen += lnew - lold;
+				end += lnew - lold;
+				n++;
+			}
+			d = memspn(d, end, L"\r\n", 2);
+		}
+	}
+	return(n);
 #undef lnew
 }
 
 // http://www.crimsoneditor.com/english/board/CrazyWWWBoard.cgi?db=forum&mode=read&num=2339&page=161&ftype=6&fval=&backdepth=1
-EXTERNC unsigned deleteblanklines(TCHAR *dest,unsigned *destlen,unsigned surplus) {
+EXTERNC unsigned deleteblanklines(TCHAR *dest, size_t *destlen, unsigned surplus) {
 #define lnew 0
-  unsigned n=0,lold;
-  TCHAR *d,*end;
-  unsigned surplus1;
-  if (dest && surplus>=1) {
-    for(d=dest,end=dest+*destlen;d<end; ) {
-      d=memcspn(d,end,L"\r\n",2);
-      for(surplus1=surplus; d<end && surplus1; surplus1--) {
-        if (*d=='\r' && d[1]=='\n') d+=2;
-        else d++;
-      }
-      lold=memspn(d,end,L"\r\n",2)-d;
-      if (lnew != lold) {
-        memmovetest(d+lnew,d+lold,*destlen-(d-dest)-lold+1);
-        *destlen += lnew-lold;
-        end += lnew-lold;
-        n++;
-      }
-    }
-  }
-  return(n);
+	unsigned n = 0, lold;
+	TCHAR *d, *end;
+	unsigned surplus1;
+	if (dest && surplus >= 1) {
+		for (d = dest, end = dest + *destlen; d < end; ) {
+			d = memcspn(d, end, L"\r\n", 2);
+			for (surplus1 = surplus; d < end && surplus1; surplus1--) {
+				if (*d == '\r' && d[1] == '\n')
+					d += 2;
+				else
+					d++;
+			}
+			lold = memspn(d, end, L"\r\n", 2) - d;
+			if (lnew != lold) {
+				memmovetest(d + lnew, d + lold, *destlen - (d - dest) - lold + 1);
+				*destlen += lnew - lold;
+				end += lnew - lold;
+				n++;
+			}
+		}
+	}
+	return(n);
 #undef lnew
 }
 
@@ -3943,7 +4057,7 @@ EXTERNC unsigned asciiEBCDIC(TCHAR *str1,unsigned destlen,const TCHAR *tabletofr
 //http://www.room42.com/store/computer_center/c_translate.shtml
 //http://support.microsoft.com/kb/q216399/
 //http://www.usc.edu/isd/doc/statistics/help/multiuse/datasamples/
-unsigned char g_tb512ASCII_To_EBCDIC []={ // EBCDIC->ASCII is second half of table
+TCHAR g_tb512ASCII_To_EBCDIC []={ // EBCDIC->ASCII is second half of table
 0x00,0x01,0x02,0x03,0x37,0x2D,0x2E,0x2F,0x16,0x05,0x25,0x0B,0x0C,0x0D,0x0E,0x0F,
 0x10,0x11,0x12,0x13,0x3C,0x3D,0x32,0x26,0x18,0x19,0x3F,0x27,0x1C,0x1D,0x1E,0x1F,
 0x40,0x5A,0x7F,0x7B,0x5B,0x6C,0x50,0x7D,0x4D,0x5D,0x5C,0x4E,0x6B,0x60,0x4B,0x61,
@@ -3978,7 +4092,7 @@ unsigned char g_tb512ASCII_To_EBCDIC []={ // EBCDIC->ASCII is second half of tab
 0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0xFA,0xFB,0xFC,0xFD,0xFE,0xFF};
 
 //http://www.siber.com/sib/russify/ms-windows/
-unsigned char g_tb512_CP1251toKOI8_R[]={ // KOI8-R -> ANSI is the second half
+TCHAR g_tb512_CP1251toKOI8_R[]={ // KOI8-R -> ANSI is the second half
 0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,
 0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,0x1C,0x1D,0x1E,0x1F,
 0x20,0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x28,0x29,0x2A,0x2B,0x2C,0x2D,0x2E,0x2F,
@@ -4012,46 +4126,55 @@ unsigned char g_tb512_CP1251toKOI8_R[]={ // KOI8-R -> ANSI is the second half
 0xDE,0xC0,0xC1,0xD6,0xC4,0xC5,0xD4,0xC3,0xD5,0xC8,0xC9,0xCA,0xCB,0xCC,0xCD,0xCE,
 0xCF,0xDF,0xD0,0xD1,0xD2,0xD3,0xC6,0xC2,0xDC,0xDB,0xC7,0xD8,0xDD,0xD9,0xD7,0xDA};
 
-EXTERNC unsigned wordcount(char *str,unsigned destlen) {
-  char *end;
-  unsigned linelen;
-  int wasspace;
-  unsigned words=0,chrasutf8=0,chrnsp=0,chrsp=0,lines=0,linesnonblank=0,linelongest=0,lineshortest=(unsigned)-1;
-  if (str) {
-    for(linelen=0,wasspace=TRUE,end=str+destlen;str<end;str++) {
-        switch(*str) {
-      case '\r':
-        if (str[1]=='\n') str++;
-      case '\n':
-        if (linelen) linesnonblank++;
-        if (linelen>0 && lineshortest>linelen) lineshortest=linelen;
-        if (linelongest<linelen) linelongest=linelen;
-        lines++;
-        wasspace=TRUE;
-        linelen=0;
-        break;
-      case '\t':
-      case ' ':
-        chrasutf8++;
-        chrsp++;
-        wasspace=TRUE;
-        linelen++;
-        break;
-      default:
-        if (*(unsigned char *)str<0x80 || *(unsigned char *)str>0xC0) chrasutf8++; //http://www.cl.cam.ac.uk/~mgk25/unicode.html#mod
-        if (wasspace) words++;
-        chrsp++;
-        chrnsp++;
-        wasspace=FALSE;
-        linelen++;
-        break;
-        }
-    }
-    if (linelen) {lines++; linesnonblank++;}
-    MessageBoxFree(g_nppData._nppHandle,smprintf(_T("Words:%u\r\nCharacters (no spaces):%u\r\nCharacters:%u\r\nUTF-8 Characters:%u\r\nUTF-8 Efficiency:%u%%\r\nLines:%u\r\nLongest Line:%u\r\nShortest nonblank line:%u\r\nNonblank lines:%u"),
-      words,chrnsp,chrsp,chrasutf8,chrnsp?(100*chrasutf8)/chrsp:0,lines,linelongest,lineshortest,linesnonblank), _T(PLUGIN_NAME), MB_OK|MB_ICONINFORMATION);
-  }
-  return(0);
+EXTERNC unsigned wordcount(TCHAR *str, unsigned destlen) {
+	TCHAR *end;
+	unsigned linelen;
+	int wasspace;
+	unsigned words = 0, chrasutf8 = 0, chrnsp = 0, chrsp = 0, lines = 0, linesnonblank = 0, linelongest = 0, lineshortest = (unsigned)-1;
+
+	if (str) {
+		for (linelen = 0, wasspace = TRUE, end = str + destlen; str < end; str++) {
+			switch (*str) {
+			case '\r':
+				if (str[1] == '\n')
+					str++;
+			case '\n':
+				if (linelen) linesnonblank++;
+				if (linelen > 0 && lineshortest > linelen)
+					lineshortest = linelen;
+				if (linelongest < linelen)
+					linelongest = linelen;
+				lines++;
+				wasspace = TRUE;
+				linelen = 0;
+				break;
+			case '\t':
+			case ' ':
+				chrasutf8++;
+				chrsp++;
+				wasspace = TRUE;
+				linelen++;
+				break;
+			default:
+				if (*(unsigned char *)str < 0x80 || *(unsigned char *)str>0xC0)
+					chrasutf8++; //http://www.cl.cam.ac.uk/~mgk25/unicode.html#mod
+				if (wasspace)
+					words++;
+				chrsp++;
+				chrnsp++;
+				wasspace = FALSE;
+				linelen++;
+				break;
+			}
+		}
+		if (linelen) {
+			lines++;
+			linesnonblank++;
+		}
+		MessageBoxFree(g_nppData._nppHandle, smprintf(_T("Words:%u\r\nCharacters (no spaces):%u\r\nCharacters:%u\r\nUTF-8 Characters:%u\r\nUTF-8 Efficiency:%u%%\r\nLines:%u\r\nLongest Line:%u\r\nShortest nonblank line:%u\r\nNonblank lines:%u"),
+			words, chrnsp, chrsp, chrasutf8, chrnsp ? (100 * chrasutf8) / chrsp : 0, lines, linelongest, lineshortest, linesnonblank), _T(PLUGIN_NAME), MB_OK | MB_ICONINFORMATION);
+	}
+	return(0);
 }
 
 // SECTION: END
@@ -4176,8 +4299,8 @@ EXTERNC unsigned tidyHTML(TCHAR **dest,unsigned *destsz,unsigned *destlen,unsign
 //		} else if ((str2=strdupsafe((char *)output.bp,"tidyHTML"))) {
 //          freesafe(str,"tidyHTML");
 //          *dest=str=str2;
-//          sln=output.size;
-//          *destsz=sln+1;
+//          textBufferLength=output.size;
+//          *destsz=textBufferLength+1;
           rv=1;
         } else
 			MessageBox(g_nppData._nppHandle,"Out of memory in " _T(PLUGIN_NAME) " (not a HTMLtidy error)", _T(PLUGIN_NAME), MB_OK|MB_ICONINFORMATION);
@@ -4217,7 +4340,7 @@ tidyfree:
 // writes size to *size, which may be NULL if the caller does not need to know the size
 // binary==TRUE: size=size of entire buffer; You need to specify a size parameter.
 // binary=FALSE: size=size of text not including \0. Buffer size is always +1.
-// eoltype = SCI_GETEOLMODE; can be set to any value if SCDS_PASTETOEDITOREOL is not set.
+// eolType = SCI_GETEOLMODE; can be set to any value if SCDS_PASTETOEDITOREOL is not set.
 // This unified set of flags is used by several routines. They are unified so the flags can
 // be passed among them without requiring flag bit filtering or translation. Routines are
 // allowed to filter flag bits if they want to. Each routine only
@@ -4338,7 +4461,7 @@ EXTERNC TCHAR *strdupClipboardText(unsigned *size,unsigned flags,unsigned eoltyp
 		  } else
 			  memcpy(rv,clip,rvsz);
           if (flags&SCDS_PASTETOEDITOREOL) {
-            //MessageBoxFree(g_nppData._nppHandle,smprintf("Converting EOL to %u",eoltype),PLUGIN_NAME, MB_OK);
+            //MessageBoxFree(g_nppData._nppHandle,smprintf("Converting EOL to %u",eolType),PLUGIN_NAME, MB_OK);
             converteol(&rv, &rvsz, &rvlen, eoltype);
             if (!(flags&SCDS_COPYPASTEBINARY) && rv) {
               armreallocsafe(&rv, &rvsz, CHARSIZE(rvlen + 1), ARMSTRATEGY_REDUCE, 0, _T("strdupClipboardText"));
@@ -4486,9 +4609,10 @@ getdetails:
 //failbreak:
     CloseClipboard();
     if (buf) {
-      INT_CURRENTEDIT; GET_CURRENTEDIT;
-      SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0,0);
-      SENDMSGTOCED(currentEdit, SCI_ADDTEXT, buflen,buf);
+      INT_CURRENTEDIT;
+	  GET_CURRENTEDIT;
+      SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, 0);
+      SENDMSGTOCED(currentEdit, SCI_ADDTEXT, buflen, buf);
       freesafe(buf, _T("pfinsertclipinfo"));
     }
   }
@@ -4843,8 +4967,8 @@ failbreak:
 // SECTION: END
 // SECTION: Beginning of Scintilla Interface
 
-//extends anchor and curpos out to bound entire entire lines
-//returns TRUE if curpos or anchor was altered, meaning that either curpos or anchor was not originally at a line boundry
+//extends anchorPos and currentPos out to bound entire entire lines
+//returns TRUE if currentPos or anchorPos was altered, meaning that either currentPos or anchorPos was not originally at a line boundry
 //grabextralines: FALSE=extend the minimal amount to enclose lines; TRUE=include additional blank lines after the lowest part of the boundry
 EXTERNC BOOL lineextend(INT_CURRENTEDIT,unsigned *anchor,unsigned *curpos,BOOL grabextralines) {
   BOOL rv=FALSE;
@@ -4880,11 +5004,11 @@ EXTERNC BOOL lineextend(INT_CURRENTEDIT,unsigned *anchor,unsigned *curpos,BOOL g
   return(rv);
 }
 
-// bracematch() looks to the left then to the right of curpos for a brace,
+// bracematch() looks to the left then to the right of currentPos for a brace,
 // then it locates the matching brace. SCI_BRACEMATCH is not sufficient because:
 //  SCI_BRACEMATCH  only matches brace characters, not keywords as bracematch() eventually will.
 //  During a SCN_CHARADDED, SCI_BRACEMATCH always fails to locate a brace
-//  SCI_BRACEMATCH does not look on both sides of curpos for a brace as the user expects
+//  SCI_BRACEMATCH does not look on both sides of currentPos for a brace as the user expects
 //  SCI_BRACEMATCH does not have flags to correct or adjust position for user needs
 // returns TRUE if matches were found, returns curpos1 and matchpos1 of the match positions
 // unless otherwise noted, brace refers to all of the characters {([<>])}
@@ -4897,69 +5021,79 @@ EXTERNC BOOL lineextend(INT_CURRENTEDIT,unsigned *anchor,unsigned *curpos,BOOL g
 #define CAFLAG_EXTENDTOLINES 4 /* TRUE: extends curposl,matchpos1 to entire lines; This one is reused in convertall() */
 #define FLAG_INCLUDEBRACKETS 8 /* TRUE: include bracket characters between curpos1,matchpos1; FALSE: only include between the brackets */
 
-EXTERNC BOOL bracematch(INT_CURRENTEDIT, unsigned *curpos1,unsigned *matchpos1,unsigned flags) {
-  char BKTS[]="{}()[]<>";
-  if (currentEdit==INVALID_CURRENT_EDIT) GET_CURRENTEDIT;
-  unsigned curpos=SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
-  if (SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0)>1) {
-    unsigned anchor; if ((anchor=SENDMSGTOCED(currentEdit, SCI_GETANCHOR, 0, 0))==curpos+1) curpos=anchor;
-  }
-  TCHAR bracebuf[3];
-  char *bkt;
-  struct TextRange tr;
-  tr.chrg.cpMin=curpos-1;
-  tr.chrg.cpMax=curpos+1;
-  tr.lpstrText=bracebuf;
-  if (tr.chrg.cpMin<0) tr.chrg.cpMin=0;
-  int textlen=SENDMSGTOCED(currentEdit, SCI_GETLENGTH, 0, 0);
-  if (tr.chrg.cpMax>textlen) tr.chrg.cpMax=textlen;
-  unsigned sln; if ((sln=SENDMSGTOCED(currentEdit, SCI_GETTEXTRANGE, 0, &tr))<1) return(FALSE);
-  //MessageBoxFree(g_nppData._nppHandle,smprintf("sln:%d curpos:%d cpmin:%d cpmax:%d buf\r\n%s",sln,curpos,tr.chrg.cpMin,tr.chrg.cpMax,tr.lpstrText),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-  if ((bkt=strchr(BKTS,bracebuf[0]))) curpos=tr.chrg.cpMin;
-  else if (sln<2 || !(bkt=strchr(BKTS,bracebuf[1]))) return(FALSE);
-  if (((flags&FLAG_IGNOREBEGINBRACE) && !((bkt-BKTS)&1)) ||
-     (((flags&FLAG_IGNOREENDBRACE) && ((bkt-BKTS)&1))) ) return(FALSE);
-  unsigned bktpos=/*-1;// */SENDMSGTOCED(currentEdit, SCI_BRACEMATCH, curpos, 0);
-  if (bktpos==(unsigned)-1) { // in some cases, SCI_BRACEMATCH fails even though we are on a valid brace with a findable opposing brace, such as during a SCNotification
-    //MessageBoxFree(g_nppData._nppHandle,smprintf("BraceMatch Failed"),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-    int dir=((bkt-BKTS)&1)?-1:1;
-    if (dir>0) {
-      tr.chrg.cpMin=curpos+1;
-      tr.chrg.cpMax=SENDMSGTOCED(currentEdit, SCI_GETLENGTH, curpos, 0);
-    } else {
-      tr.chrg.cpMin=0;
-      tr.chrg.cpMax=curpos;
-    }
-    if (!(tr.lpstrText=(TCHAR *)mallocsafe(tr.chrg.cpMax-tr.chrg.cpMin+2, _T("bracematch"))))
+EXTERNC BOOL bracematch(INT_CURRENTEDIT, unsigned *curpos1, unsigned *matchpos1, unsigned flags) {
+	char BKTS[] = "{}()[]<>";
+	if (currentEdit == INVALID_CURRENT_EDIT)
+		GET_CURRENTEDIT;
+	unsigned curpos = SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
+	if (SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0) > 1) {
+		unsigned anchor;
+		if ((anchor = SENDMSGTOCED(currentEdit, SCI_GETANCHOR, 0, 0)) == curpos + 1)
+			curpos = anchor;
+	}
+	TCHAR bracebuf[3];
+	char *bkt;
+	struct TextRange tr;
+	tr.chrg.cpMin = curpos - 1;
+	tr.chrg.cpMax = curpos + 1;
+	tr.lpstrText = bracebuf;
+	if (tr.chrg.cpMin < 0)
+		tr.chrg.cpMin = 0;
+	int textlen = SENDMSGTOCED(currentEdit, SCI_GETLENGTH, 0, 0);
+	if (tr.chrg.cpMax > textlen)
+		tr.chrg.cpMax = textlen;
+	unsigned sln;
+	if ((sln = SENDMSGTOCED(currentEdit, SCI_GETTEXTRANGE, 0, &tr)) < 1)
 		return(FALSE);
-    unsigned sln=SENDMSGTOCED(currentEdit, SCI_GETTEXTRANGE, 0, &tr);
-    unsigned level=1;
-    bktpos=curpos;
-    TCHAR *d;
-	for(d=tr.lpstrText+(dir<0?(sln-1):0); level && ((dir<0)?(d>=tr.lpstrText):(d<tr.lpstrText+sln)); d += dir, bktpos+=dir) {
-      if (*d==bkt[0])
-		  level++;
-      else if (*d==bkt[dir])
-		  level--;
-    }
-    if (level) bktpos=(unsigned)-1;
-    //MessageBoxFree(g_nppData._nppHandle,smprintf("cpmin:%d cpmax:%d sln:%d dir:%d level:%u ch:%c curpos:%d bktpos:%d *d:%c",tr.chrg.cpMin,tr.chrg.cpMax,sln,dir,level,bkt[0],curpos,bktpos,*d),PLUGIN_NAME, MB_OK); //MessageBox(g_nppData._nppHandle,tr.lpstrText,PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-    freesafe(tr.lpstrText, _T("bracematch"));
-  }
-  if (bktpos!=(unsigned)-1) {
-    //MessageBoxFree(g_nppData._nppHandle,smprintf("curpos:%d bktpos:%d includebkts:%d",curpos,bktpos,includebkts),PLUGIN_NAME, MB_OK); //MessageBox(g_nppData._nppHandle,tr.lpstrText,PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-    if (curpos>bktpos && (flags & FLAG_INCLUDEBRACKETS))
-		curpos++;
-    if (!(flags & FLAG_INCLUDEBRACKETS) || curpos<bktpos)
-		bktpos++;
-    if ((flags & CAFLAG_EXTENDTOLINES))
-		lineextend(currentEdit,&bktpos,&curpos,TRUE);
-    *curpos1=curpos;
-    *matchpos1=bktpos;
-    return(TRUE);
-  } else {
-    return(FALSE);
-  }
+	//MessageBoxFree(g_nppData._nppHandle,smprintf("textBufferLength:%d currentPos:%d cpmin:%d cpmax:%d buf\r\n%s",textBufferLength,currentPos,tr.chrg.cpMin,tr.chrg.cpMax,tr.lpstrText),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+	if ((bkt = strchr(BKTS, bracebuf[0])))
+		curpos = tr.chrg.cpMin;
+	else if (sln < 2 || !(bkt = strchr(BKTS, bracebuf[1])))
+		return(FALSE);
+	if (((flags&FLAG_IGNOREBEGINBRACE) && !((bkt - BKTS) & 1)) ||
+		(((flags&FLAG_IGNOREENDBRACE) && ((bkt - BKTS) & 1))))
+		return(FALSE);
+	unsigned bktpos =/*-1;// */SENDMSGTOCED(currentEdit, SCI_BRACEMATCH, curpos, 0);
+	if (bktpos == (unsigned)-1) { // in some cases, SCI_BRACEMATCH fails even though we are on a valid brace with a findable opposing brace, such as during a SCNotification
+	  //MessageBoxFree(g_nppData._nppHandle,smprintf("BraceMatch Failed"),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+		int dir = ((bkt - BKTS) & 1) ? -1 : 1;
+		if (dir > 0) {
+			tr.chrg.cpMin = curpos + 1;
+			tr.chrg.cpMax = SENDMSGTOCED(currentEdit, SCI_GETLENGTH, curpos, 0);
+		} else {
+			tr.chrg.cpMin = 0;
+			tr.chrg.cpMax = curpos;
+		}
+		if (!(tr.lpstrText = (TCHAR *)mallocsafe(tr.chrg.cpMax - tr.chrg.cpMin + 2, _T("bracematch"))))
+			return(FALSE);
+		unsigned sln = SENDMSGTOCED(currentEdit, SCI_GETTEXTRANGE, 0, &tr);
+		unsigned level = 1;
+		bktpos = curpos;
+		TCHAR *d;
+		for (d = tr.lpstrText + (dir < 0 ? (sln - 1) : 0); level && ((dir < 0) ? (d >= tr.lpstrText) : (d < tr.lpstrText + sln)); d += dir, bktpos += dir) {
+			if (*d == bkt[0])
+				level++;
+			else if (*d == bkt[dir])
+				level--;
+		}
+		if (level) bktpos = (unsigned)-1;
+		//MessageBoxFree(g_nppData._nppHandle,smprintf("cpmin:%d cpmax:%d textBufferLength:%d dir:%d level:%u ch:%c currentPos:%d bktpos:%d *d:%c",tr.chrg.cpMin,tr.chrg.cpMax,textBufferLength,dir,level,bkt[0],currentPos,bktpos,*d),PLUGIN_NAME, MB_OK); //MessageBox(g_nppData._nppHandle,tr.lpstrText,PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+		freesafe(tr.lpstrText, _T("bracematch"));
+	}
+	if (bktpos != (unsigned)-1) {
+		//MessageBoxFree(g_nppData._nppHandle,smprintf("currentPos:%d bktpos:%d includebkts:%d",currentPos,bktpos,includebkts),PLUGIN_NAME, MB_OK); //MessageBox(g_nppData._nppHandle,tr.lpstrText,PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+		if (curpos > bktpos && (flags & FLAG_INCLUDEBRACKETS))
+			curpos++;
+		if (!(flags & FLAG_INCLUDEBRACKETS) || curpos < bktpos)
+			bktpos++;
+		if ((flags & CAFLAG_EXTENDTOLINES))
+			lineextend(currentEdit, &bktpos, &curpos, TRUE);
+		*curpos1 = curpos;
+		*matchpos1 = bktpos;
+		return(TRUE);
+	}
+
+	return(FALSE);
 }
 
 // convertall is here to do all the hard work getting text from and back to Scintilla which
@@ -4970,84 +5104,124 @@ EXTERNC BOOL bracematch(INT_CURRENTEDIT, unsigned *curpos1,unsigned *matchpos1,u
 // 4) Reselect the entire text, or the failed text if a failure occured
 // Rectangular selections are handled without any special programming in the transforms.
 // Transforms do not need to handle restrictions. Transforms only work with a simple c-string.
-#define CAFLAG_DENYBLOCK 1 /* We typically deny rectangular selection if the tranform has no use for partial lines or transformed text would fit poorly in the rectangular area. */
-#define CAFLAG_REQUIREBLOCK 2 /* Setting both DENY and REQUIRE block would be a bad idea */
+#define CAFLAG_DENYBLOCK					    1 /* We typically deny rectangular selection if the tranform has no use for partial lines or transformed text would fit poorly in the rectangular area. */
+#define CAFLAG_REQUIREBLOCK					    2 /* Setting both DENY and REQUIRE block would be a bad idea */
 /* CAFLAG_EXTENDTOLINES is defined above */
-#define CAFLAG_REQUIREMULTILINES 8 /* Two or more lines must be selected (doesn't always calculate right) */
-#define CAFLAG_GETCLIPBOARDTEXT 0x10 /* Get and submit the clipboard but it is not required */
-#define CAFLAG_REQUIRECLIPBOARDTEXT 0x20 /* Get ... and the clipboard cannot be empty */
-#define CAFLAG_REQUIRECLIPBOARDTEXT1CHAR 0x40 /* Get ... and the clipboard must contain exactly 1 character */
-#define CAFLAG_GETALLWHENNOSELECTION 0x80 /* Get the entire document if the user hasn't selected anything */
+#define CAFLAG_REQUIREMULTILINES			    8 /* Two or more lines must be selected (doesn't always calculate right) */
+#define CAFLAG_GETCLIPBOARDTEXT				 0x10 /* Get and submit the clipboard but it is not required */
+#define CAFLAG_REQUIRECLIPBOARDTEXT			 0x20 /* Get ... and the clipboard cannot be empty */
+#define CAFLAG_REQUIRECLIPBOARDTEXT1CHAR	 0x40 /* Get ... and the clipboard must contain exactly 1 character */
+#define CAFLAG_GETALLWHENNOSELECTION		 0x80 /* Get the entire document if the user hasn't selected anything */
 //#define CAFLAG_GETCURLINEWHENNOSELECTION 0x100 /* Get the current line the user hasn't selected anything */
-#define CAFLAG_DENYBINARY 0x200 /* User is not permitted to select any text with \0 in it */
-#define CAFLAG_USEUNICODE 0x400 /* Use the UNICODE version of this function if in the right mode */
-#define CAFLAG_UNICODENTONLY 0x800 /* Unicode is automatically blocked if not in NT */
+#define CAFLAG_DENYBINARY					0x200 /* User is not permitted to select any text with \0 in it */
+#define CAFLAG_USEUNICODE					0x400 /* Use the UNICODE version of this function if in the right mode */
+#define CAFLAG_UNICODENTONLY				0x800 /* Unicode is automatically blocked if not in NT */
 #define IsScintillaUnicode(currentEdit) (SENDMSGTOCED(currentEdit, SCI_GETCODEPAGE, 0, 0)==SC_CP_UTF8)
 
-EXTERNC void convertall(char cmd, unsigned flags, const char *s1, const char *s2, const char *s3, const char *s4) {
+#define CONVERTALL_CMD_memlowercase			'1'
+#define CONVERTALL_CMD_memuppercase			'R'
+#define CONVERTALL_CMD_mempropercase		'P'
+#define CONVERTALL_CMD_meminvertcase		'p'
+#define CONVERTALL_CMD_memsentencecase		's'
+#define CONVERTALL_CMD_memchrtran1			'c'
+#define CONVERTALL_CMD_asciiEBCDIC			'e'
+#define CONVERTALL_CMD_zapchar				'z'
+#define CONVERTALL_CMD_addup				'+'
+#define CONVERTALL_CMD_wordcount			'-'
+#define CONVERTALL_CMD_memstrtran			'S'
+#define CONVERTALL_CMD_strchrstrans			'Z'
+#define CONVERTALL_CMD_prepostpendlines		'&'
+#define CONVERTALL_CMD_lineup				','
+#define CONVERTALL_CMD_space2tabs			'\t'
+#define CONVERTALL_CMD_insertclipboardcolumn '|'
+#define CONVERTALL_CMD_rewraptexttest		'Ww'
+#define CONVERTALL_CMD_stripHTMLtags		'h'
+#define CONVERTALL_CMD_indentlines			'i'
+#define CONVERTALL_CMD_indentlinessurround	'I'
+#define CONVERTALL_CMD_strqsortlines		'q'
+#define CONVERTALL_CMD_killwhitenonqt		' '
+#define CONVERTALL_CMD_findqtstrings		'"'
+#define CONVERTALL_CMD_trimtrailingspace	't'
+#define CONVERTALL_CMD_deleteblanklines		'd'
+#define CONVERTALL_CMD_reindentcode			'A'
+#define CONVERTALL_CMD_submitW3C			'3'
+#define CONVERTALL_CMD_numberconvert		'n'
+#define CONVERTALL_CMD_encodeURIcomponent	'H'
+#define CONVERTALL_CMD_filldown				'f'
+#define CONVERTALL_CMD_memchrtran			'C'
+#define CONVERTALL_CMD_tohex				'X'
+#define CONVERTALL_CMD_fromhex				'x'
+#define CONVERTALL_CMD_insertlinenumbers	'l'
+#define CONVERTALL_CMD_deletefirstword		'L'
+#define CONVERTALL_CMD_extendblockspaces	'E'
+#define CONVERTALL_CMD_cleanemailquoting	'Q'
+#define CONVERTALL_CMD_uudecode				'u'
+#define CONVERTALL_CMD_base64decode			'U'
+#define CONVERTALL_CMD_hexbyterunstolittlendian '4'
+#define CONVERTALL_CMD_littlendiantohexbyteruns	'5'
+#define CONVERTALL_CMD_converteol			'O'
+#define CONVERTALL_CMD_splitlinesatch		'~'
+
+EXTERNC void convertall(char cmd, unsigned flags, const TCHAR *s1, const TCHAR *s2, const TCHAR *s3, const TCHAR *s4) {
 #define CAFLAG_BLOCKMODE 0x1000 /* internal: true if block mode text was selected */
 #define CAFLAG_HASBINARY 0x2000 /* internal: true if the text contained a \0 */
 #define origexpand 16384
-	char *tx = NULL;
-	wchar_t *txW = NULL;
+	char *txUCS2 = NULL;
+	TCHAR *txUnicode = NULL;
 	TCHAR *clip = NULL;
 	unsigned *lps = NULL, *lpe = NULL;
+	flags |= CAFLAG_UNICODENTONLY;	// Always require Unicode
 
 	do {
 		INT_CURRENTEDIT;
 		GET_CURRENTEDIT;
-		//struct TextRange tr; tr.chrg.cpMin=p1; tr.chrg.cpMax=p2; //tr.lpstrText=buf;
-		unsigned curpos; curpos = SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
-		unsigned anchor; anchor = SENDMSGTOCED(currentEdit, SCI_GETANCHOR, 0, 0);
-		unsigned eoltype = SENDMSGTOCED(currentEdit, SCI_GETEOLMODE, 0, 0);
-		if ((flags & CAFLAG_USEUNICODE) && IsScintillaUnicode(currentEdit)) {
-			if ((flags&CAFLAG_UNICODENTONLY) && !g_fOnNT) {
-				MessageBox(g_nppData._nppHandle,
-					_T("This tool can only provide UNICODE/UTF-8 functionality in\r\nWindows NT or better. The tool might work if your text can be viewed in ANSI mode."),
-					_T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
-				break;
-			}
-			flags |= CAFLAG_USEUNICODE;
-		} else {
-			flags &= ~CAFLAG_USEUNICODE;
+		//struct TextRange tr; tr.chrg.cpMin=posStart; tr.chrg.cpMax=posEnd; //tr.lpstrText=buf;
+		unsigned currentPos = SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
+		unsigned anchorPos = SENDMSGTOCED(currentEdit, SCI_GETANCHOR, 0, 0);
+		unsigned eolType = SENDMSGTOCED(currentEdit, SCI_GETEOLMODE, 0, 0);
+
+		// Unicode check
+		if ((flags & CAFLAG_UNICODENTONLY) && !g_fOnNT) {
+			MessageBox(g_nppData._nppHandle,
+				_T("This tool can only provide UNICODE/UTF-8 functionality in\r\nWindows NT or better. The tool might work if your text can be viewed in ANSI mode."),
+				_T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
+			break;
 		}
 
-		unsigned p1, p2;
-		if (anchor < curpos) {
-			p1 = anchor;
-			p2 = curpos;
-		} else {
-			p1 = curpos;
-			p2 = anchor;
+		// Is Scintilla using Code page SC_CP_UTF8 (65001) ?
+		if (IsScintillaUnicode(currentEdit)) {
+			// Don't really care.
 		}
-		unsigned p1line = SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, p1, 0);
-		unsigned sellen = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0) - 1;
-		if (sellen < 1) {
+		flags |= CAFLAG_USEUNICODE;	// Always use Unicode
+
+		unsigned posStart, posEnd;
+		if (anchorPos < currentPos) {
+			posStart = anchorPos;
+			posEnd = currentPos;
+		} else {
+			posStart = currentPos;
+			posEnd = anchorPos;
+		}
+		unsigned p1line = SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, posStart, 0);
+		unsigned selectionLength = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0) - 1;
+		if (selectionLength < 1) {
 			flags &= ~(CAFLAG_EXTENDTOLINES);
 			if (flags & CAFLAG_GETALLWHENNOSELECTION) {
-				sellen = SENDMSGTOCED(currentEdit, SCI_GETLENGTH, 0, 0);
-				p1line = p1 = 0;
-				p2 = sellen - 1;
-				/*flags &= ~ CAFLAG_GETCURLINEWHENNOSELECTION;
-			  } else if (flags & CAFLAG_GETCURLINEWHENNOSELECTION) {
-				p1=SENDMSGTOCED(currentEdit, SCI_POSITIONFROMLINE, p1line, 0); // p1==p2 here
-				p2=SENDMSGTOCED(currentEdit, SCI_GETLINEENDPOSITION, p1line, 0); // does not include the EOL
-				sellen=p2-p1+1;
-				//MessageBoxFree(g_nppData._nppHandle,smprintf("p1:%u p2:%u sellen:%u",p1,p2,sellen),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-				flags &= ~ CAFLAG_GETALLWHENNOSELECTION;*/
+				selectionLength = SENDMSGTOCED(currentEdit, SCI_GETLENGTH, 0, 0);
+				p1line = posStart = 0;
+				posEnd = selectionLength - 1;
 			} else {
 				MessageBox(g_nppData._nppHandle, _T("No text selected"), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
 				break;
 			}
-			if (sellen < 1) {
+			if (selectionLength < 1) {
 				MessageBox(g_nppData._nppHandle, _T("No text selected or document is empty"), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
 				break;
 			}
-		}
-		else flags &= ~(/*CAFLAG_GETCURLINEWHENNOSELECTION|*/CAFLAG_GETALLWHENNOSELECTION);
-		//if (curpos<anchor) {int less=anchor;anchor=curpos;curpos=less; flags |= CAFLAG_LESS;}
+		} else
+			flags &= ~(/*CAFLAG_GETCURLINEWHENNOSELECTION|*/CAFLAG_GETALLWHENNOSELECTION);
 		if ((flags & (CAFLAG_GETCLIPBOARDTEXT | CAFLAG_REQUIRECLIPBOARDTEXT | CAFLAG_REQUIRECLIPBOARDTEXT1CHAR)) &&
-			!(clip = strdupClipboardText(NULL, (IsScintillaUnicode(currentEdit) ? SCDS_UNICODEMODE : 0) | SCDS_PASTETOEDITOREOL, eoltype, NULL))) {
+			!(clip = strdupClipboardText(NULL, (IsScintillaUnicode(currentEdit) ? SCDS_UNICODEMODE : 0) | SCDS_PASTETOEDITOREOL, eolType, NULL))) {
 			if (flags & CAFLAG_REQUIRECLIPBOARDTEXT) {
 				MessageBox(g_nppData._nppHandle, _T("This tool requires some text in the clipboard"), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
 				break;
@@ -5058,30 +5232,32 @@ EXTERNC void convertall(char cmd, unsigned flags, const char *s1, const char *s2
 			break;
 		}
 		unsigned p1diff = 0;
-		if (flags&CAFLAG_EXTENDTOLINES) {
-			unsigned p1o = p1;
-			if (lineextend(currentEdit, &p1, &p2, FALSE)) {
-				p1line = SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, p1, 0); // I'm not sure if this is necessary
-				p1diff = p1o - p1;
+		if (flags & CAFLAG_EXTENDTOLINES) {
+			unsigned p1o = posStart;
+			if (lineextend(currentEdit, &posStart, &posEnd, FALSE)) {
+				p1line = SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, posStart, 0); // I'm not sure if this is necessary
+				p1diff = p1o - posStart;
 			}
 			//flags &= ~CAFLAG_BLOCKMODE;
-			SENDMSGTOCED(currentEdit, SCI_SETSEL, p1, p2);
-			sellen = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0) - 1;
+			SENDMSGTOCED(currentEdit, SCI_SETSEL, posStart, posEnd);
+			selectionLength = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0) - 1;
 		}
-		if (SENDMSGTOCED(currentEdit, SCI_SELECTIONISRECTANGLE, 0, 0)) flags |= CAFLAG_BLOCKMODE; else flags &= ~CAFLAG_BLOCKMODE;
-		if (flags&CAFLAG_BLOCKMODE) {
+		if (SENDMSGTOCED(currentEdit, SCI_SELECTIONISRECTANGLE, 0, 0))
+			flags |= CAFLAG_BLOCKMODE;
+		else
+			flags &= ~CAFLAG_BLOCKMODE;
+		if (flags & CAFLAG_BLOCKMODE) {
 			if (flags&CAFLAG_DENYBLOCK) {
 				MessageBox(g_nppData._nppHandle, _T("This tool cannot process a retangular text selection"), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
 				break;
 			}
-		}
-		else if (flags&CAFLAG_REQUIREBLOCK) {
+		} else if (flags & CAFLAG_REQUIREBLOCK) {
 			MessageBox(g_nppData._nppHandle, _T("This tool only works with a retangular text selection.\r\nHold down Alt and select some text."), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
 			break;
 		}
-		unsigned p2line = (p1 == p2) ? p1line : SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, p2, 0);
-		unsigned blocklines = p2line - p1line + 1 - (((unsigned)SENDMSGTOCED(currentEdit, SCI_POSITIONFROMLINE, p2line, 0) == p2) ? 1 : 0);
-		//MessageBoxFree(g_nppData._nppHandle,smprintf("p1line:%u p2line:%u blocklines:%u p2:%u SCI_POS:%u",p1line,p2line,blocklines,p2,SENDMSGTOCED(currentEdit, SCI_POSITIONFROMLINE, p2line, 0)),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+		unsigned p2line = (posStart == posEnd) ? p1line : SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, posEnd, 0);
+		unsigned blocklines = p2line - p1line + 1 - (((unsigned)SENDMSGTOCED(currentEdit, SCI_POSITIONFROMLINE, p2line, 0) == posEnd) ? 1 : 0);
+		//MessageBoxFree(g_nppData._nppHandle,smprintf("p1line:%u p2line:%u blocklines:%u posEnd:%u SCI_POS:%u",p1line,p2line,blocklines,posEnd,SENDMSGTOCED(currentEdit, SCI_POSITIONFROMLINE, p2line, 0)),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
 		if (blocklines < 2 /*((flags&CAFLAG_EXTENDTOLINES)?3:2)*/) { // 3:2 won't catch everything but it will catch most
 			flags &= ~CAFLAG_BLOCKMODE; // you're not really in block mode if you've only marked one line
 			if (flags&CAFLAG_REQUIREMULTILINES) {
@@ -5103,32 +5279,31 @@ EXTERNC void convertall(char cmd, unsigned flags, const char *s1, const char *s2
 				lpe[ln] = SENDMSGTOCED(currentEdit, SCI_GETLINESELENDPOSITION, (p1line + ln), 0) - lbof;
 			}
 		}
+
 		// this could be recoded to convert a line at a time but issues such as long line length
 		// and possible performance issues in calling into Scintilla so much make me leave it this way.
 		// slow: calc line length, select line text, malloc, copy selected text into buffer, convert buffer, replace selection
 		// Each select line text may cause a screen jump so it may be best to do it as one big buf
 		// also, line by line processing wouldn't permit transforms to operate on \r\n characters
-		size_t txszW, txsz = roundtonextpower(sellen + origexpand + 1);
-		if (!(tx = (char *)mallocsafe(txsz, _T("convertall-txsz")))) {
+		size_t allocatedTextBufferSize = roundtonextpower(selectionLength + origexpand + 1);
+		size_t allocatedConvertedTextBufferSize;
+		if (!(txUCS2 = (char*)mallocsafe(allocatedTextBufferSize, _T("convertall-allocatedTextBufferSize")))) {
 			MessageBox(g_nppData._nppHandle, _T("Not enough memory"), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
 			break;
 		}
-#if NPPDEBUG
-		//char *txorig=tx; // functions that free and re-malloc() tx are not required to provide spare space
-#endif
+
 		unsigned rv = 0;
-		size_t sln;
-		unsigned slnW = 0;
-		if (flags&CAFLAG_GETALLWHENNOSELECTION)
-			sln = SENDMSGTOCED(currentEdit, SCI_GETTEXT, (sellen + 1), tx);
-		//else if (flags&CAFLAG_GETCURLINEWHENNOSELECTION){SENDMSGTOCED(currentEdit, SCI_GETCURLINE, (sellen+1), tx); sln=sellen; }
+		size_t textBufferLength;
+		if (flags & CAFLAG_GETALLWHENNOSELECTION)
+			textBufferLength = SENDMSGTOCED(currentEdit, SCI_GETTEXT, (selectionLength + 1), txUCS2);
 		else
-			sln = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, tx) - 1;
+			textBufferLength = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, txUCS2) - 1;
 
 #if NPPDEBUG
-		if (sln != sellen) MessageBoxFree(g_nppData._nppHandle, smprintf(_T("Mismatch sellen:%u sln:%u"), sellen, sln), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
+		if (textBufferLength != selectionLength)
+			MessageBoxFree(g_nppData._nppHandle, smprintf(_T("Mismatch selectionLength:%u textBufferLength:%u"), selectionLength, textBufferLength), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
 #endif
-		if (memchr(tx, '\0', sln)) {
+		if (memchr(txUCS2, '\0', textBufferLength)) {
 			flags |= CAFLAG_HASBINARY;
 			if (flags&CAFLAG_DENYBINARY) {
 				MessageBox(g_nppData._nppHandle, _T("This tool is not compatible with binary text. Please select text without [NUL] characters."), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
@@ -5136,151 +5311,228 @@ EXTERNC void convertall(char cmd, unsigned flags, const char *s1, const char *s2
 			}
 		} else
 			flags &= ~CAFLAG_HASBINARY;
-		// XXX Disabled for now:
-		//    if ((flags & CAFLAG_USEUNICODE) && (txszW=UCS2FromUTF8(tx,sln,NULL,0,FALSE,NULL)*sizeof(wchar_t))) {
-		//      if ((txW=(wchar_t *)mallocsafe(txszW,"convertall-txszW"))) { // should this always be Little Endian?
-		//        slnW=UCS2FromUTF8(tx,sln,txW,txszW,FALSE,NULL);
-		//      } else {
-		//        MessageBox(g_nppData._nppHandle, L"Out of memory converting to UNICODE (#1)",PLUGIN_NAME, MB_OK|MB_ICONSTOP);
-		//      }
-		//    }
-		if (!txW) flags &= ~CAFLAG_USEUNICODE;
-		//MessageBoxFree(g_nppData._nppHandle,smprintf("#2 sln:%u txszW:%u txW:%p",sln,txszW,txW),PLUGIN_NAME, MB_OK|MB_ICONSTOP);
+
+		// Go convert!
+		size_t textBufferConvertedLength = UCS2FromUTF8(txUCS2, textBufferLength, NULL, 0, FALSE, NULL) + 1;
+		allocatedConvertedTextBufferSize = roundtonextpower(textBufferConvertedLength + origexpand + 1);
+		if (!(txUnicode = (TCHAR*)mallocsafe(allocatedConvertedTextBufferSize, _T("convertall-allocatedTextBufferSize")))) {
+			MessageBox(g_nppData._nppHandle, _T("Not enough memory"), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
+			break;
+		}
+
+		// All incoming text is always UCS-2.
+		// UCS-2 --> UTF-8
+		unsigned sln = UCS2FromUTF8(txUCS2, textBufferLength, txUnicode, allocatedConvertedTextBufferSize, FALSE, NULL);
+		txUnicode[sln] = '\0';
+
+		//MessageBoxFree(g_nppData._nppHandle,smprintf("#2 textBufferLength:%u txszW:%u txW:%p",textBufferLength,txszW,txW),PLUGIN_NAME, MB_OK|MB_ICONSTOP);
 		//MessageBoxFree(g_nppData._nppHandle,smprintf("%sUsing Unicode",(flags&CAFLAG_USEUNICODE)?"":"Not "),PLUGIN_NAME, MB_OK|MB_ICONSTOP);
 		SENDMSGTOCED(currentEdit, SCI_SETCURSOR, SC_CURSORWAIT, 0);
 		switch (cmd) {
-		case '1': rv = (flags&CAFLAG_USEUNICODE) ? memlowercaseW(txW, slnW) : NULL; break;
-		case 'R': rv = (flags&CAFLAG_USEUNICODE) ? memuppercaseW(txW, slnW) : NULL; break;
-		case 'P': rv = (flags&CAFLAG_USEUNICODE) ? mempropercaseW(txW, slnW) : NULL; break;
-		case 'p': rv = (flags&CAFLAG_USEUNICODE) ? meminvertcaseW(txW, slnW) : NULL; break;
-		case 's': rv = (flags&CAFLAG_USEUNICODE) ? memsentencecaseW(txW, slnW) : NULL; break;
-		case 'c': rv = memchrtran1(txW, sln, *s1, *s2); break;
-			// XXX Disabled for now:
-			//    case 'e': rv=asciiEBCDIC(txW,sln,s2,s3,*s1=='t'?0:1); break;
-		case 'z': rv = zapchar(tx, sln, *s1, *s2 == 'n' ? 1 : 0); break;
-		case '+': rv = addup(tx); break;
-		case '-': rv = wordcount(tx, sln); break;
-
-			// XXX Disabled for now:
-			//	case 'S': rv=memstrtran(&tx,&txsz,&sln,NULL,s1,strlen(s1),s2,strlen(s2)); if (s3 && s4) rv+=memstrtran(&tx,&txsz,&sln,NULL,s3,strlen(s3),s4,strlen(s4)); break;
-			//    case 'Z': rv=strchrstrans(&tx,&txsz,&sln,NULL,s1,strlen(s1),s2); break;
-			//    case '&': rv=prepostpendlines(&tx,&txsz,&sln,*s3=='s'?0:1,s1,strlen(s1),s2,strlen(s2),s3+1,strlen(s3+1),s4,strlen(s4)); break;
-			//    case ',': rv=lineup(&tx,&txsz,&sln,clip?*clip:*s1,SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0),SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0),1 /* C-STRING */); break;
-			//    case '\t': rv=space2tabs(&tx,&txsz,&sln,SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0),s1?atoi(s1):SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0),0); break;
-			//    case '|': rv=insertclipboardcolumn(&tx,&txsz,&sln,clip,p1diff); break;
-		case 'W':
-			//    case 'w': rv=rewraptexttest(&tx,&txsz,&sln,(cmd=='W'?0:((clip&&isdigit(*clip))?atoi(clip):1)),eoltype); break;
-			//    case 'h': rv=stripHTMLtags(&tx,&txsz,&sln,s1); break;
-			//case 'i': rv=indentlines(&tx,&txsz,&sln,SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0),SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0)); break;
-			//case 'I': rv=indentlinessurround(&tx,&txsz,&sln,SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0),SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0),eoltype); break;
-		case 'q': rv = strqsortlines(&txW, &txsz, &sln, *s1 == 'n' ? 1 : 0, *s2 == 'a' ? 1 : 0, p1diff); break;
-			//    case ' ': rv=killwhitenonqt(tx,&sln,s1[0]=='v'?1:0); break;
-			//    case '"': rv=findqtstrings(&tx,&txsz,&sln,clip?clip:s1,s2[0]=='v'?1:0); break;
-			//    case 't': rv=trimtrailingspace(tx,&sln); break;
-			//    case 'd': rv=deleteblanklines(tx,&sln,atol(s1)); break;
-				//case 'N': rv=deleteeverynthline(tx,txsz,&sln,atoi(s1)); break;
-			//    case 'A': rv=reindentcode(&tx,&txsz,&sln,SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0),SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0)); break;
-			//    case '3': rv=submitW3C(&tx,&txsz,&sln,s1,s2); break;
-		case 'n': rv = numberconvert(&txW, &txsz, &sln, *s1, *s2); break;
-			//    case 'H': rv=encodeURIcomponent(&tx,&txsz,&sln); break;
-			//    case 'f': rv=filldown(&tx,&txsz,&sln,*s1=='i'?1:0); break;
-			//    case 'C': rv=memchrtran(&tx,&txsz,&sln,s1,strlen(s1),s2,strlen(s2)); break;
-			//    case 'X': rv=tohex(&tx,&txsz,&sln,p1,atol(s1)); break;
-			//    case 'x': rv=fromhex(&tx,&txsz,&sln,p1); flags |= CAFLAG_HASBINARY; break;
-			//    case 'l': rv=insertlinenumbers(&tx,&txsz,&sln,p1line+1); break;
-			//    case 'L': rv=deletefirstword(&tx,&txsz,&sln); break;
-			//    case 'E': rv=extendblockspaces(&tx,&txsz,&sln); break;
-			//    case 'Q': rv=cleanemailquoting(&tx,&txsz,&sln); break;
-			//    case 'u': rv=uudecode(&tx,&txsz,&sln); flags |= CAFLAG_HASBINARY; break;
-			//    case 'U': rv=base64decode(&tx,&txsz,&sln); flags |= CAFLAG_HASBINARY; break;
-			//    case '4': rv=hexbyterunstolittlendian(&tx,&txsz,&sln,atol(s1)); break;
-			//    case '5': rv=littlendiantohexbyteruns(&tx,&txsz,&sln); break;
-		case 'O': rv = converteol(&txW, &txsz, &sln, eoltype); break;
-			//    case '~': rv=splitlinesatch(&tx,&txsz,&sln,(clip && !clip[1])?*clip:*s1,s2[0]=='v'?1:0,eoltype); break;
+		case CONVERTALL_CMD_memlowercase:
+			rv = memlowercase(txUnicode, textBufferLength);
+			break;
+		case CONVERTALL_CMD_memuppercase:
+			rv = memuppercase(txUnicode, textBufferLength);
+			break;
+		case CONVERTALL_CMD_mempropercase:
+			rv = mempropercase(txUnicode, textBufferLength);
+			break;
+		case CONVERTALL_CMD_meminvertcase:
+			rv = meminvertcase(txUnicode, textBufferLength);
+			break;
+		case CONVERTALL_CMD_memsentencecase:
+			rv = memsentencecase(txUnicode, textBufferLength);
+			break;
+		case CONVERTALL_CMD_memchrtran1:
+			rv = memchrtran1(txUnicode, textBufferLength, *s1, *s2);
+			break;
+		case CONVERTALL_CMD_asciiEBCDIC:
+			rv = asciiEBCDIC(txUnicode, textBufferLength, s2, s3, *s1 == 't' ? 0 : 1);
+			break;
+		case CONVERTALL_CMD_zapchar:
+			rv = zapchar(txUnicode, textBufferLength, *s1, *s2 == 'n' ? 1 : 0);
+			break;
+		case CONVERTALL_CMD_addup:
+			rv = addup(txUnicode);
+			break;
+		case CONVERTALL_CMD_wordcount:
+			rv = wordcount(txUnicode, textBufferLength);
+			break;
+		case CONVERTALL_CMD_memstrtran:
+			rv = memstrtran(&txUnicode, &allocatedTextBufferSize, &textBufferLength, NULL, s1, wcslen(s1), s2, wcslen(s2));
+			if (s3 && s4)
+				rv += memstrtran(&txUnicode, &allocatedTextBufferSize, &textBufferLength, NULL, s3, wcslen(s3), s4, wcslen(s4));
+			break;
+		case CONVERTALL_CMD_strchrstrans:
+			rv = strchrstrans(&txUnicode, &allocatedTextBufferSize, &textBufferLength, NULL, s1, wcslen(s1), s2);
+			break;
+		case CONVERTALL_CMD_prepostpendlines:
+			rv = prepostpendlines(&txUnicode, &allocatedTextBufferSize, &textBufferLength, *s3 == 's' ? 0 : 1, s1, wcslen(s1), s2, wcslen(s2), s3 + 1, wcslen(s3 + 1), s4, wcslen(s4));
+			break;
+		case CONVERTALL_CMD_lineup:
+			rv = lineup(&txUnicode, &allocatedTextBufferSize, &textBufferLength, clip ? *clip : *s1, SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0), SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0), 1 /* C-STRING */);
+			break;
+		case CONVERTALL_CMD_space2tabs:
+			rv = space2tabs(&txUnicode, &allocatedTextBufferSize, &textBufferLength, SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0), s1 ? _wtoi(s1) : SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0), 0);
+			break;
+		case CONVERTALL_CMD_insertclipboardcolumn:
+			rv = insertclipboardcolumn(&txUnicode, &allocatedTextBufferSize, &textBufferLength, clip, p1diff);
+			break;
+		case CONVERTALL_CMD_rewraptexttest:
+			rv = rewraptexttest(&txUnicode, &allocatedTextBufferSize, &textBufferLength, (cmd == 'W' ? 0 : ((clip&&isdigit(*clip)) ? _wtoi(clip) : 1)), eolType);
+			break;
+		case CONVERTALL_CMD_stripHTMLtags:
+			rv = stripHTMLtags(&txUnicode, &allocatedTextBufferSize, &textBufferLength, s1);
+			break;
+		case CONVERTALL_CMD_indentlines:
+			rv = indentlines(&txUnicode, &allocatedTextBufferSize, &textBufferLength, SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0), SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0));
+			break;
+		case CONVERTALL_CMD_indentlinessurround:
+			rv = indentlinessurround(&txUnicode, &allocatedTextBufferSize, &textBufferLength, SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0), SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0), eolType);
+			break;
+		case CONVERTALL_CMD_strqsortlines:
+			rv = strqsortlines(&txUnicode, &allocatedTextBufferSize, &textBufferLength, *s1 == 'n' ? 1 : 0, *s2 == 'a' ? 1 : 0, p1diff);
+			break;
+		case CONVERTALL_CMD_killwhitenonqt:
+			rv = killwhitenonqt(txUnicode, &textBufferLength, s1[0] == 'v' ? 1 : 0);
+			break;
+		case CONVERTALL_CMD_findqtstrings:
+			rv = findqtstrings(&txUnicode, &allocatedTextBufferSize, &textBufferLength, clip ? clip : s1, s2[0] == 'v' ? 1 : 0);
+			break;
+		case CONVERTALL_CMD_trimtrailingspace:
+			rv = trimtrailingspace(txUnicode, &textBufferLength);
+			break;
+		case CONVERTALL_CMD_deleteblanklines:
+			rv = deleteblanklines(txUnicode, &textBufferLength, _wtol(s1));
+			break;
+		case CONVERTALL_CMD_reindentcode:
+			rv = reindentcode(&txUnicode, &allocatedTextBufferSize, &textBufferLength, SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0), SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0));
+			break;
+		case CONVERTALL_CMD_submitW3C:
+			rv = submitW3C(&txUnicode, &allocatedTextBufferSize, &textBufferLength, s1, s2);
+			break;
+		case CONVERTALL_CMD_numberconvert:
+			rv = numberconvert(&txUnicode, &allocatedTextBufferSize, &textBufferLength, *s1, *s2);
+			break;
+		case CONVERTALL_CMD_encodeURIcomponent:
+			rv = encodeURIcomponent(&txUnicode, &allocatedTextBufferSize, &textBufferLength);
+			break;
+		case CONVERTALL_CMD_filldown:
+			rv = filldown(&txUnicode, &allocatedTextBufferSize, &textBufferLength, *s1 == 'i' ? 1 : 0);
+			break;
+		case CONVERTALL_CMD_memchrtran:
+			rv = memchrtran(&txUnicode, &allocatedTextBufferSize, &textBufferLength, s1, wcslen(s1), s2, wcslen(s2));
+			break;
+		case CONVERTALL_CMD_tohex:
+			rv = tohex(&txUnicode, &allocatedTextBufferSize, &textBufferLength, posStart, _wtol(s1));
+			break;
+		case CONVERTALL_CMD_fromhex:
+			rv = fromhex(&txUnicode, &allocatedTextBufferSize, &textBufferLength, posStart);
+			flags |= CAFLAG_HASBINARY;
+			break;
+		case CONVERTALL_CMD_insertlinenumbers:
+			rv = insertlinenumbers(&txUnicode, &allocatedTextBufferSize, &textBufferLength, p1line + 1);
+			break;
+		case CONVERTALL_CMD_deletefirstword:
+			rv = deletefirstword(&txUnicode, &allocatedTextBufferSize, &textBufferLength);
+			break;
+		case CONVERTALL_CMD_extendblockspaces:
+			rv = extendblockspaces(&txUnicode, &allocatedTextBufferSize, &textBufferLength);
+			break;
+		case CONVERTALL_CMD_cleanemailquoting:
+			rv = cleanemailquoting(&txUnicode, &allocatedTextBufferSize, &textBufferLength);
+			break;
+		case CONVERTALL_CMD_uudecode:
+			rv = uudecode(&txUnicode, &allocatedTextBufferSize, &textBufferLength);
+			flags |= CAFLAG_HASBINARY;
+			break;
+		case CONVERTALL_CMD_base64decode:
+			rv = base64decode(&txUnicode, &allocatedTextBufferSize, &textBufferLength);
+			flags |= CAFLAG_HASBINARY;
+			break;
+		case CONVERTALL_CMD_hexbyterunstolittlendian:
+			rv = hexbyterunstolittlendian(&txUnicode, &allocatedTextBufferSize, &textBufferLength, _wtol(s1));
+			break;
+		case CONVERTALL_CMD_littlendiantohexbyteruns:
+			rv = littlendiantohexbyteruns(&txUnicode, &allocatedTextBufferSize, &textBufferLength);
+			break;
+		case CONVERTALL_CMD_converteol:
+			rv = converteol(&txUnicode, &allocatedTextBufferSize, &textBufferLength, eolType);
+			break;
+		case CONVERTALL_CMD_splitlinesatch:
+			rv = splitlinesatch(&txUnicode, &allocatedTextBufferSize, &textBufferLength, (clip && !clip[1]) ? *clip : *s1, s2[0] == 'v' ? 1 : 0, eolType);
+			break;
 #if ENABLE_TIDYDLL
 		case 'T': rv = tidyHTML(&tx, &txsz, &sln, eoltype, SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0)); break;
 #endif
-		}
-		if (rv && (flags&CAFLAG_USEUNICODE)) {
-			sln = UTF8FromUCS2(txW, slnW, NULL, 0, FALSE) + 1;
-			if (txsz < sln) {
-				freesafe(tx, _T("convertall-wide"));
-				tx = (char *)mallocsafe(txsz = sln, _T("convertall-wide"));
-			}
-			if (tx) {
-				sln = UTF8FromUCS2(txW, slnW, tx, txsz, FALSE);
-				tx[sln] = '\0';
-			} else {
-				MessageBox(g_nppData._nppHandle, _T("Out of memory converting to UNICODE (#2)"), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
-			}
-		}
-		if (tx) {
+		} // end switch switch (cmd)
+
+		if (txUnicode) {
+			// Go convert!
+			// UTF-8 --> UCS-2
+			sln = UTF8FromUCS2(txUnicode, allocatedConvertedTextBufferSize, (char*)txUCS2, textBufferLength, FALSE);
+			txUCS2[sln] = '\0';
 #if NPPDEBUG
-			if (!(flags&CAFLAG_HASBINARY) && strlen(tx) != sln)
+			if (!(flags&CAFLAG_HASBINARY) && strlen(txUCS2) != textBufferLength)
 				MessageBoxFree(g_nppData._nppHandle,
-					smprintf(_T("sellen (sln) not calculated properly:\nstrlen(tx):%u != sln:%u"), strlen(tx), sln),
+					smprintf(_T("selectionLength (textBufferLength) not calculated properly:\nstrlen(txUCS2):%u != textBufferLength:%u"), strlen(txUCS2), textBufferLength),
 					_T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
 #endif
+			// Finally release the converted buffer
+			freesafe(txUnicode, _T("convertall-end"));
+			txUnicode = NULL;
+
 			if (rv) {
 				SENDMSGTOCED(currentEdit, SCI_BEGINUNDOACTION, 0, 0);
 				if (flags & CAFLAG_BLOCKMODE) {
 					unsigned ln;
-					TCHAR *d, *end;
-					for (ln = 0, d = txW, end = d + sln; ln < blocklines && d < end; ln++) {
-						unsigned chn = memcspn(d, txW + sln, _T("\r\n"), 2) - d;
+					char *d, *end;
+					for (ln = 0, d = txUCS2, end = d + textBufferLength; ln < blocklines && d < end; ln++) {
+						unsigned bytes = memcspn_chr(d, txUCS2 + textBufferLength, "\r\n", 2) - d;
 						if (lpe[ln] > lps[ln]) {
 							int lbof = SENDMSGTOCED(currentEdit, SCI_POSITIONFROMLINE, (p1line + ln), 0);
-							//SENDMSGTOCED(currentEdit, SCI_SETSEL, (lps[ln]+lbof), (lpe[ln]+lbof));
-							//if (rv) SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, "");
-							//if (rv) SENDMSGTOCED(currentEdit, SCI_ADDTEXT, chn, d);
 							SENDMSGTOCED(currentEdit, SCI_SETTARGETSTART, lps[ln] + lbof, 0);
 							SENDMSGTOCED(currentEdit, SCI_SETTARGETEND, lpe[ln] + lbof, 0);
-							SENDMSGTOCED(currentEdit, SCI_REPLACETARGET, chn, d);
+							SENDMSGTOCED(currentEdit, SCI_REPLACETARGET, bytes, d);
 						}
-						d += chn;
-						if ((d[0] == '\r' && d[1] == '\n') || (d[0] == '\n' && d[1] == '\r')) d += 2;
-						else if (d[0] == '\r' || d[0] == '\n') d++;
+						d += bytes;
+						if ((d[0] == '\r' && d[1] == '\n') || (d[0] == '\n' && d[1] == '\r'))
+							d += 2;
+						else if (d[0] == '\r' || d[0] == '\n')
+							d++;
 					}
-					/*curpos = lpe[blocklines-1]+SENDMSGTOCED(currentEdit, SCI_POSITIONFROMLINE, p1line+blocklines-1, 0);
-					if (curpos<anchor) curpos=anchor+1; // carefully constructed cases can push anchor ahead of curpos
-					SENDMSGTOCED(currentEdit, SCI_SETANCHOR,(flags&CAFLAG_LESS)?curpos:anchor, 0);
-					SENDMSGTOCED(currentEdit, SCI_SETSELECTIONMODE,SC_SEL_RECTANGLE, 0);
-					SENDMSGTOCED(currentEdit, SCI_SETCURRENTPOS,(flags&CAFLAG_LESS)?anchor:curpos, 0);*/
 				} else {
-					p2 += sln - sellen;
+					posEnd += textBufferLength - selectionLength;
 					if (rv) {
 						if (flags&CAFLAG_GETALLWHENNOSELECTION) {
 							SENDMSGTOCED(currentEdit, SCI_SETTEXT, 0, "");
-							SENDMSGTOCED(currentEdit, SCI_ADDTEXT, sln, tx);
-						} /*else if (flags&CAFLAG_GETCURLINEWHENNOSELECTION) {
-						  //MessageBoxFree(g_nppData._nppHandle,smprintf("p1:%u p2:%u sln:%u",p1,p2,sln),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-						  SENDMSGTOCED(currentEdit, SCI_SETTARGETSTART, p1, 0);
-						  SENDMSGTOCED(currentEdit, SCI_SETTARGETEND, p2-1,0);
-						  SENDMSGTOCED(currentEdit, SCI_REPLACETARGET, sln, tx);
-						  sln=0;
-						} */else {
+							SENDMSGTOCED(currentEdit, SCI_ADDTEXT, textBufferLength, txUCS2);
+						}
+						else {
 							SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, "");
-							SENDMSGTOCED(currentEdit, SCI_ADDTEXT, sln, tx);
+							SENDMSGTOCED(currentEdit, SCI_ADDTEXT, textBufferLength, txUCS2);
 						}
 					}
-					//if (sln) {
-					if (curpos < anchor)
-						SENDMSGTOCED(currentEdit, SCI_SETSEL, p2, p1);
+					if (currentPos < anchorPos)
+						SENDMSGTOCED(currentEdit, SCI_SETSEL, posEnd, posStart);
 					else
-						SENDMSGTOCED(currentEdit, SCI_SETSEL, p1, p2);
-					//}
+						SENDMSGTOCED(currentEdit, SCI_SETSEL, posStart, posEnd);
 				}
-				SENDMSGTOCED(currentEdit, SCI_ENDUNDOACTION, 0, 0);
-			}
-		}
-		else MessageBoxFree(g_nppData._nppHandle, smprintf(_T("Out of memory%s"), HighPerformance ? _T(". Try turning off High Performance.") : _T("")),
-			_T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
+			} // end if (rv)
+			SENDMSGTOCED(currentEdit, SCI_ENDUNDOACTION, 0, 0);
+		} else {
+			MessageBoxFree(g_nppData._nppHandle, smprintf(_T("Out of memory%s"), HighPerformance ? _T(". Try turning off High Performance.") : _T("")),
+				_T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
+		} // end if (txUCS2)
+
 		SENDMSGTOCED(currentEdit, SCI_SETCURSOR, SC_CURSORNORMAL, 0);
 	} while (0);
-	if (txW)
-		freesafe(txW, _T("convertall-end"));
-	if (tx)
-		freesafe(tx, _T("convertall-end"));
+
+	if (txUCS2)
+		freesafe(txUCS2, _T("convertall-end"));
+	if (txUnicode)
+		freesafe(txUnicode, _T("convertall-end"));
 	if (lps)
 		freesafe(lps, _T("convertall-end"));
 	if (lpe)
@@ -5294,142 +5546,151 @@ EXTERNC void convertall(char cmd, unsigned flags, const char *s1, const char *s2
 #undef MAXLINES
 }
 // SECTION: END
+
 // SECTION: Beginning of Notepad++ interface
 
 // SUBSECTION: Single line menu functions
 EXTERNC PFUNCPLUGINCMD pfdummy(void) { } // does absolutely nothing at all
-EXTERNC PFUNCPLUGINCMD pfconvert1q2q(void)         { convertall('c',0,"'","\"",NULL,NULL);}
-EXTERNC PFUNCPLUGINCMD pfconvert2q1q(void)         { convertall('c',0,"\"","'",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertqtswap(void)       { convertall('C',0,"\"'","'\"",NULL,NULL);}
-EXTERNC PFUNCPLUGINCMD pfconvertqtdrop(void)       { convertall('C',0,"\"'","",NULL,NULL);}
-EXTERNC PFUNCPLUGINCMD pfconvertescapesq(void)     { convertall('S',0,"\"","\\\"",NULL,NULL);}
-EXTERNC PFUNCPLUGINCMD pfconvertescape1qsq(void)   { convertall('S',0,"'","\\\"",NULL,NULL);}
-EXTERNC PFUNCPLUGINCMD pfconvertescape1qs1q(void)  { convertall('S',0,"'","\\'",NULL,NULL);}
-EXTERNC PFUNCPLUGINCMD pfconvertescapeboth(void)   { convertall('S',0,"'","\\'","\"","\\\"");}
-EXTERNC PFUNCPLUGINCMD pfconvertunescapesq(void)   { convertall('S',0,"\\\"","\"",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertunescapesq1q(void) { convertall('S',0,"\\\"","'",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertunescapes1q1q(void){ convertall('S',0,"\\'","'",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertunescapeboth(void) { convertall('S',0,"\\'","'","\\\"","\""); }
-EXTERNC PFUNCPLUGINCMD pfconvertescape2q22q(void)  { convertall('S',0,"\"","\"\"",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertescape1q22q(void)  { convertall('S',0,"'","\"\"",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertunescape22q2q(void){ convertall('S',0,"\"\"","\"",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertunescape22q1q(void){ convertall('S',0,"\"\"","'",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertuppercase(void)    { convertall('R',CAFLAG_USEUNICODE,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertlowercase(void)    { convertall('1',CAFLAG_USEUNICODE,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertpropercase(void)   { convertall('P',CAFLAG_USEUNICODE,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertsentencecase(void) { convertall('s',CAFLAG_USEUNICODE,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconvertinvertcase(void)   { convertall('p',CAFLAG_USEUNICODE,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfencodeHTML(void)          { convertall('Z',CAFLAG_DENYBLOCK,"&<>\"",",&&amp;,<&lt;,>&gt;,\"&quot;,",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfencodeURIcomponent(void)  { convertall('H',CAFLAG_DENYBLOCK,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfrot13(void)               { convertall('C',0,"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz","NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfunwraptext(void)          { convertall('W',CAFLAG_DENYBLOCK,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfrewraptext(void)          { convertall('w',CAFLAG_DENYBLOCK|CAFLAG_GETCLIPBOARDTEXT,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pflineupcomma(void)         { convertall(',',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES,",",NULL,NULL,NULL);}
-EXTERNC PFUNCPLUGINCMD pflineupequals(void)        { convertall(',',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES,"=",NULL,NULL,NULL);}
-EXTERNC PFUNCPLUGINCMD pflineupclipboard(void)     { convertall(',',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES|CAFLAG_REQUIRECLIPBOARDTEXT1CHAR,NULL,NULL,NULL,NULL);}
-EXTERNC PFUNCPLUGINCMD pfinsertclipboardcolumn(void){convertall('|',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES|CAFLAG_REQUIRECLIPBOARDTEXT,NULL,NULL,NULL,NULL);}
-EXTERNC PFUNCPLUGINCMD pfemptyundobuffer(void){ INT_CURRENTEDIT; GET_CURRENTEDIT; SENDMSGTOCED(currentEdit, SCI_EMPTYUNDOBUFFER, 0, 0);}
-EXTERNC PFUNCPLUGINCMD pfsubmitHTML(void)     { convertall('3',CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY|CAFLAG_GETALLWHENNOSELECTION,"W3C-HTMLValidator.htm\0Extra unused space for l33t haxors to specify their own filenames\0","temp.htm\0Extra unused space for l33t haxors to specify their own filenames\0",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfsubmitCSS(void)      { convertall('3',CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY|CAFLAG_GETALLWHENNOSELECTION,"W3C-CSSValidator.htm\0Extra unused space for l33t haxors to specify their own filenames\0" ,"temp.htm\0Extra unused space for l33t haxors to specify their own filenames\0",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfdecimal2binary(void) { convertall('n',CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY,"d","b",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfdecimal2octal(void)  { convertall('n',CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY,"d","o",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfdecimal2hex(void)    { convertall('n',CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY,"d","h",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfhex2decimal(void)    { convertall('n',CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY,"h","d",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfoctal2decimal(void)  { convertall('n',CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY,"o","d",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfbinary2decimal(void) { convertall('n',CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY,"b","d",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfcnum2decimal(void)   { convertall('n',CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY,"c","d",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfstripHTMLtags(void)  { convertall('h',CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY,"t",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfstripHTMLnotabs(void){ convertall('h',CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY,"n",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfkillwhitenonqtvb(void){convertall(' ',0,"v",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfkillwhitenonqtc(void){ convertall(' ',0,"c",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pffindqtstringvb(void) { convertall('"',CAFLAG_DENYBLOCK|CAFLAG_GETCLIPBOARDTEXT,",","v",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pffindqtstringc(void)  { convertall('"',CAFLAG_DENYBLOCK|CAFLAG_GETCLIPBOARDTEXT,",","c",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pffilldownover(void)   { convertall('f',CAFLAG_REQUIREBLOCK,"o",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pffilldownins(void)    { convertall('f',CAFLAG_REQUIREBLOCK,"i",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfaddup(void)          { convertall('+',CAFLAG_DENYBINARY ,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfzapspace(void)       { convertall('z',0                 ," ","",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfzapnonprint(void)    { convertall('z',0                 ,"#","n",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfspace2tabs(void)     { convertall('\t',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfspace2tabs8(void)     { convertall('\t',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES,"8",NULL,NULL,NULL); } //http://forum.pspad.com/read.php?f=2&i=2799&t=2799
-EXTERNC PFUNCPLUGINCMD pfindentlinessurround(void)    { convertall('I',CAFLAG_DENYBLOCK,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pftrimtrailingspace(void){ convertall('t',0,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfdeleteblanklines(void){ convertall('d',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES,"1",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfdeleteblanklines2(void){ convertall('d',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES,"2",NULL,NULL,NULL); }
-//EXTERNC PFUNCPLUGINCMD pfdeleteevery2lines(void){ convertall('N',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES,"2",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfreindentcode(void)   { convertall('A',CAFLAG_EXTENDTOLINES|CAFLAG_GETALLWHENNOSELECTION|CAFLAG_DENYBLOCK|CAFLAG_REQUIREMULTILINES,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfascii2EBCDIC(void)   { convertall('e',0,"t",(char *)g_tb512ASCII_To_EBCDIC,"AsciiToEBCDIC.bin",NULL); }
-EXTERNC PFUNCPLUGINCMD pfEBCDIC2ascii(void)   { convertall('e',0,"f",(char *)g_tb512ASCII_To_EBCDIC,"AsciiToEBCDIC.bin",NULL); }
-EXTERNC PFUNCPLUGINCMD pfcp1251toKOI8_R(void) { convertall('e',0,"t",(char *)g_tb512_CP1251toKOI8_R,"ANSItoKOI8_R.bin",NULL); }
-EXTERNC PFUNCPLUGINCMD pfKOI8_Rtocp1251(void) { convertall('e',0,"f",(char *)g_tb512_CP1251toKOI8_R,"ANSItoKOI8_R.bin",NULL); }
-EXTERNC PFUNCPLUGINCMD pftohex16(void)        { convertall('X',0,"16",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pftohex32(void)        { convertall('X',0,"32",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pftohex64(void)        { convertall('X',0,"64",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pftohex128(void)       { convertall('X',0,"128",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pffromhex(void)        { convertall('x',0,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfwordcount(void)      { convertall('-',0,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfinsertlinenumbers(void){ convertall('l',0,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfdeletefirstword(void){ convertall('L',0,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfextendblockspaces(void){ convertall('E',CAFLAG_REQUIREBLOCK|CAFLAG_REQUIREMULTILINES,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfcleanemailquoting(void){ convertall('Q',0,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfuudecode(void)       { convertall('u',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfbase64decode(void)   { convertall('U',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfhexbyterunstolittlendian2(void)   { convertall('4',CAFLAG_DENYBINARY,"2",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfhexbyterunstolittlendian4(void)   { convertall('4',CAFLAG_DENYBINARY,"4",NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pflittlendiantohexbyteruns(void)   { convertall('5',CAFLAG_DENYBINARY,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfconverteol(void)     { convertall('O',CAFLAG_DENYBLOCK,NULL,NULL,NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfsplitlinesatchvb(void) { convertall('~',CAFLAG_DENYBLOCK|CAFLAG_GETCLIPBOARDTEXT,",","v",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfsplitlinesatchc(void)  { convertall('~',CAFLAG_DENYBLOCK|CAFLAG_GETCLIPBOARDTEXT,",","c",NULL,NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvert1q2q(void)			{ convertall(CONVERTALL_CMD_memchrtran1, 0, _T("'"), _T("\""), NULL, NULL);}
+EXTERNC PFUNCPLUGINCMD pfconvert2q1q(void)			{ convertall(CONVERTALL_CMD_memchrtran1, 0, _T("\""), _T("'"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertqtswap(void)		{ convertall(CONVERTALL_CMD_memchrtran, 0, _T("\"'"), _T("'\""), NULL, NULL);}
+EXTERNC PFUNCPLUGINCMD pfconvertqtdrop(void)		{ convertall(CONVERTALL_CMD_memchrtran, 0, _T("\"'"), _T(""), NULL, NULL);}
+EXTERNC PFUNCPLUGINCMD pfconvertescapesq(void)		{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("\""), _T("\\\""), NULL, NULL);}
+EXTERNC PFUNCPLUGINCMD pfconvertescape1qsq(void)	{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("'"), _T("\\\""), NULL, NULL);}
+EXTERNC PFUNCPLUGINCMD pfconvertescape1qs1q(void)	{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("'"), _T("\\'"), NULL, NULL);}
+EXTERNC PFUNCPLUGINCMD pfconvertescapeboth(void)	{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("'"), _T("\\'"), _T("\""), _T("\\\""));}
+EXTERNC PFUNCPLUGINCMD pfconvertunescapesq(void)	{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("\\\""), _T("\""), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertunescapesq1q(void)	{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("\\\""), _T("'"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertunescapes1q1q(void)	{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("\\'"), _T("'"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertunescapeboth(void)	{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("\\'"), _T("'"), _T("\\\""), _T("\"")); }
+EXTERNC PFUNCPLUGINCMD pfconvertescape2q22q(void)	{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("\""), _T("\"\""), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertescape1q22q(void)	{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("'"), _T("\"\""), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertunescape22q2q(void)	{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("\"\""), _T("\""), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertunescape22q1q(void)	{ convertall(CONVERTALL_CMD_memstrtran, 0, _T("\"\""), _T("'"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertuppercase(void)		{ convertall(CONVERTALL_CMD_memuppercase, CAFLAG_USEUNICODE, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertlowercase(void)		{ convertall(CONVERTALL_CMD_memlowercase, CAFLAG_USEUNICODE, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertpropercase(void)	{ convertall(CONVERTALL_CMD_mempropercase, CAFLAG_USEUNICODE, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertsentencecase(void)	{ convertall(CONVERTALL_CMD_memsentencecase, CAFLAG_USEUNICODE, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconvertinvertcase(void)	{ convertall(CONVERTALL_CMD_meminvertcase, CAFLAG_USEUNICODE, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfencodeHTML(void)			{ convertall(CONVERTALL_CMD_strchrstrans, CAFLAG_DENYBLOCK, _T("&<>\""), _T(",&&amp;,<&lt;,>&gt;,\"&quot;,"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfencodeURIcomponent(void)	{ convertall(CONVERTALL_CMD_encodeURIcomponent, CAFLAG_DENYBLOCK, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfrot13(void)				{ convertall(CONVERTALL_CMD_memchrtran, 0, _T("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"), _T("NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfunwraptext(void)			{ convertall(CONVERTALL_CMD_rewraptexttest, CAFLAG_DENYBLOCK, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfrewraptext(void)			{ convertall(CONVERTALL_CMD_rewraptexttest, CAFLAG_DENYBLOCK|CAFLAG_GETCLIPBOARDTEXT, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pflineupcomma(void)			{ convertall(CONVERTALL_CMD_lineup, CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES, _T(","), NULL, NULL, NULL);}
+EXTERNC PFUNCPLUGINCMD pflineupequals(void)			{ convertall(CONVERTALL_CMD_lineup, CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES, _T("="), NULL, NULL, NULL);}
+EXTERNC PFUNCPLUGINCMD pflineupclipboard(void)		{ convertall(CONVERTALL_CMD_lineup, CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES|CAFLAG_REQUIRECLIPBOARDTEXT1CHAR, NULL, NULL, NULL, NULL);}
+EXTERNC PFUNCPLUGINCMD pfinsertclipboardcolumn(void){ convertall(CONVERTALL_CMD_insertclipboardcolumn, CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES|CAFLAG_REQUIRECLIPBOARDTEXT, NULL, NULL, NULL, NULL);}
+EXTERNC PFUNCPLUGINCMD pfemptyundobuffer(void)		{ INT_CURRENTEDIT; GET_CURRENTEDIT; SENDMSGTOCED(currentEdit, SCI_EMPTYUNDOBUFFER, 0, 0);}
+EXTERNC PFUNCPLUGINCMD pfsubmitHTML(void)			{ convertall(CONVERTALL_CMD_submitW3C, CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY|CAFLAG_GETALLWHENNOSELECTION, _T("W3C-HTMLValidator.htm\0Extra unused space for l33t haxors to specify their own filenames\0"), _T("temp.htm\0Extra unused space for l33t haxors to specify their own filenames\0"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfsubmitCSS(void)			{ convertall(CONVERTALL_CMD_submitW3C, CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY|CAFLAG_GETALLWHENNOSELECTION, _T("W3C-CSSValidator.htm\0Extra unused space for l33t haxors to specify their own filenames\0"), _T("temp.htm\0Extra unused space for l33t haxors to specify their own filenames\0"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfdecimal2binary(void)		{ convertall(CONVERTALL_CMD_numberconvert, CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY, _T("d"), _T("b"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfdecimal2octal(void)		{ convertall(CONVERTALL_CMD_numberconvert, CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY, _T("d"), _T("o"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfdecimal2hex(void)			{ convertall(CONVERTALL_CMD_numberconvert, CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY, _T("d"), _T("h"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfhex2decimal(void)			{ convertall(CONVERTALL_CMD_numberconvert, CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY, _T("h"), _T("d"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfoctal2decimal(void)		{ convertall(CONVERTALL_CMD_numberconvert, CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY, _T("o"), _T("d"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfbinary2decimal(void)		{ convertall(CONVERTALL_CMD_numberconvert, CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY, _T("b"), _T("d"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfcnum2decimal(void)			{ convertall(CONVERTALL_CMD_numberconvert, CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY, _T("c"), _T("d"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfstripHTMLtags(void)		{ convertall(CONVERTALL_CMD_stripHTMLtags, CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY, _T("t"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfstripHTMLnotabs(void)		{ convertall(CONVERTALL_CMD_stripHTMLtags, CAFLAG_DENYBLOCK|CAFLAG_DENYBINARY, _T("n"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfkillwhitenonqtvb(void)		{ convertall(CONVERTALL_CMD_killwhitenonqt, 0, _T("v"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfkillwhitenonqtc(void)		{ convertall(CONVERTALL_CMD_killwhitenonqt, 0, _T("c"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pffindqtstringvb(void)		{ convertall(CONVERTALL_CMD_findqtstrings, CAFLAG_DENYBLOCK|CAFLAG_GETCLIPBOARDTEXT, _T(","), _T("v"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pffindqtstringc(void)		{ convertall(CONVERTALL_CMD_findqtstrings, CAFLAG_DENYBLOCK|CAFLAG_GETCLIPBOARDTEXT, _T(","), _T("c"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pffilldownover(void)			{ convertall(CONVERTALL_CMD_filldown, CAFLAG_REQUIREBLOCK, _T("o"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pffilldownins(void)			{ convertall(CONVERTALL_CMD_filldown, CAFLAG_REQUIREBLOCK, _T("i"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfaddup(void)				{ convertall(CONVERTALL_CMD_addup, CAFLAG_DENYBINARY ,NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfzapspace(void)				{ convertall(CONVERTALL_CMD_zapchar, 0, _T(" "), _T(""), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfzapnonprint(void)			{ convertall(CONVERTALL_CMD_zapchar, 0, _T("#"), _T("n"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfspace2tabs(void)			{ convertall(CONVERTALL_CMD_space2tabs, CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfspace2tabs8(void)			{ convertall(CONVERTALL_CMD_space2tabs, CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES, _T("8"), NULL, NULL, NULL); } //http://forum.pspad.com/read.php?f=2&i=2799&t=2799
+EXTERNC PFUNCPLUGINCMD pfindentlinessurround(void)  { convertall(CONVERTALL_CMD_indentlinessurround, CAFLAG_DENYBLOCK, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pftrimtrailingspace(void)	{ convertall(CONVERTALL_CMD_trimtrailingspace, 0, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfdeleteblanklines(void)		{ convertall(CONVERTALL_CMD_deleteblanklines, CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES, _T("1"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfdeleteblanklines2(void)	{ convertall(CONVERTALL_CMD_deleteblanklines, CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_REQUIREMULTILINES, _T("2"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfreindentcode(void)			{ convertall(CONVERTALL_CMD_reindentcode, CAFLAG_EXTENDTOLINES|CAFLAG_GETALLWHENNOSELECTION|CAFLAG_DENYBLOCK|CAFLAG_REQUIREMULTILINES, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfascii2EBCDIC(void)			{ convertall(CONVERTALL_CMD_asciiEBCDIC, 0, _T("t"), g_tb512ASCII_To_EBCDIC, _T("AsciiToEBCDIC.bin"), NULL); }
+EXTERNC PFUNCPLUGINCMD pfEBCDIC2ascii(void)			{ convertall(CONVERTALL_CMD_asciiEBCDIC, 0, _T("f"), g_tb512ASCII_To_EBCDIC, _T("AsciiToEBCDIC.bin"), NULL); }
+EXTERNC PFUNCPLUGINCMD pfcp1251toKOI8_R(void)		{ convertall(CONVERTALL_CMD_asciiEBCDIC, 0, _T("t"), g_tb512_CP1251toKOI8_R, _T("ANSItoKOI8_R.bin"), NULL); }
+EXTERNC PFUNCPLUGINCMD pfKOI8_Rtocp1251(void)		{ convertall(CONVERTALL_CMD_asciiEBCDIC, 0, _T("f"), g_tb512_CP1251toKOI8_R, _T("ANSItoKOI8_R.bin"), NULL); }
+EXTERNC PFUNCPLUGINCMD pftohex16(void)				{ convertall(CONVERTALL_CMD_tohex, 0, _T("16"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pftohex32(void)				{ convertall(CONVERTALL_CMD_tohex, 0, _T("32"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pftohex64(void)				{ convertall(CONVERTALL_CMD_tohex, 0, _T("64"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pftohex128(void)				{ convertall(CONVERTALL_CMD_tohex, 0, _T("128"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pffromhex(void)				{ convertall(CONVERTALL_CMD_fromhex, 0, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfwordcount(void)			{ convertall(CONVERTALL_CMD_wordcount, 0, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfinsertlinenumbers(void)	{ convertall(CONVERTALL_CMD_insertlinenumbers, 0, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfdeletefirstword(void)		{ convertall(CONVERTALL_CMD_deletefirstword, 0, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfextendblockspaces(void)	{ convertall(CONVERTALL_CMD_extendblockspaces, CAFLAG_REQUIREBLOCK|CAFLAG_REQUIREMULTILINES, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfcleanemailquoting(void)	{ convertall(CONVERTALL_CMD_cleanemailquoting, 0, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfuudecode(void)				{ convertall(CONVERTALL_CMD_uudecode, CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfbase64decode(void)			{ convertall(CONVERTALL_CMD_base64decode, CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfhexbyterunstolittlendian2(void){ convertall(CONVERTALL_CMD_hexbyterunstolittlendian, CAFLAG_DENYBINARY, _T("2"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfhexbyterunstolittlendian4(void){ convertall(CONVERTALL_CMD_hexbyterunstolittlendian, CAFLAG_DENYBINARY, _T("4"), NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pflittlendiantohexbyteruns(void) { convertall(CONVERTALL_CMD_littlendiantohexbyteruns, CAFLAG_DENYBINARY, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfconverteol(void)			{ convertall(CONVERTALL_CMD_converteol, CAFLAG_DENYBLOCK, NULL, NULL, NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfsplitlinesatchvb(void)		{ convertall(CONVERTALL_CMD_splitlinesatch, CAFLAG_DENYBLOCK|CAFLAG_GETCLIPBOARDTEXT, _T(","), _T("v"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfsplitlinesatchc(void)		{ convertall(CONVERTALL_CMD_splitlinesatch, CAFLAG_DENYBLOCK|CAFLAG_GETCLIPBOARDTEXT, _T(","), _T("c"), NULL, NULL); }
 // SUBSECTION: END
+
 // SUBSECTION: Multiline menu functions
-EXTERNC PFUNCPLUGINCMD pfindentlines(void)    {
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  if (SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0)>1 /*&& !SENDMSGTOCED(currentEdit, SCI_SELECTIONISRECTANGLE, 0, 0)*/) {
-    convertall('i',CAFLAG_EXTENDTOLINES|CAFLAG_DENYBLOCK/*|CAFLAG_GETCURLINEWHENNOSELECTION*/,NULL,NULL,NULL,NULL);
-  } else SENDMSGTOCED(currentEdit, SCI_TAB,0,0);
+EXTERNC PFUNCPLUGINCMD pfindentlines(void) {
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
+	if (SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0) > 1 /*&& !SENDMSGTOCED(currentEdit, SCI_SELECTIONISRECTANGLE, 0, 0)*/) {
+		convertall('i', CAFLAG_EXTENDTOLINES | CAFLAG_DENYBLOCK/*|CAFLAG_GETCURLINEWHENNOSELECTION*/, NULL, NULL, NULL, NULL);
+	} else
+		SENDMSGTOCED(currentEdit, SCI_TAB, 0, 0);
 }
 
 EXTERNC PFUNCPLUGINCMD pffindmatchchar(void) {
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  unsigned curpos,mtpos; if (bracematch(currentEdit,&curpos,&mtpos,0)) SENDMSGTOCED(currentEdit, SCI_GOTOPOS, (mtpos), 0);
+  INT_CURRENTEDIT;
+  GET_CURRENTEDIT;
+  unsigned curpos,mtpos;
+  if (bracematch(currentEdit,&curpos,&mtpos,0))
+	  SENDMSGTOCED(currentEdit, SCI_GOTOPOS, (mtpos), 0);
 }
 
 EXTERNC PFUNCPLUGINCMD pfmarkmatchchar(void) {
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  unsigned curpos,mtpos; if (bracematch(currentEdit,&curpos,&mtpos,FLAG_INCLUDEBRACKETS)) SENDMSGTOCED(currentEdit, SCI_SETSEL, curpos, mtpos);
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
+	unsigned curpos, mtpos;
+	if (bracematch(currentEdit, &curpos, &mtpos, FLAG_INCLUDEBRACKETS))
+		SENDMSGTOCED(currentEdit, SCI_SETSEL, curpos, mtpos);
 }
+
 EXTERNC PFUNCPLUGINCMD pfdeletebracepair(void) {
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  unsigned curpos,mtpos; if (bracematch(currentEdit,&curpos,&mtpos,FLAG_INCLUDEBRACKETS)) {
-    unsigned p1,p2;
-    if (curpos<mtpos) {p1=curpos;p2=mtpos;} else {p1=mtpos;p2=curpos;}
-    //MessageBoxFree(g_nppData._nppHandle,smprintf("Deleting p1:%u p2:%d",p1,p2),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-    SENDMSGTOCED(currentEdit, SCI_BEGINUNDOACTION, 0, 0);
-    SENDMSGTOCED(currentEdit, SCI_SETTARGETSTART, p2-1, 0);
-    SENDMSGTOCED(currentEdit, SCI_SETTARGETEND, p2,0);
-    SENDMSGTOCED(currentEdit, SCI_REPLACETARGET, 0,0);
-    SENDMSGTOCED(currentEdit, SCI_SETTARGETSTART, p1, 0);
-    SENDMSGTOCED(currentEdit, SCI_SETTARGETEND, p1+1,0);
-    SENDMSGTOCED(currentEdit, SCI_REPLACETARGET, 0,0);
-    SENDMSGTOCED(currentEdit, SCI_ENDUNDOACTION, 0, 0);
-  }
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
+	unsigned curpos, mtpos;
+	if (bracematch(currentEdit, &curpos, &mtpos, FLAG_INCLUDEBRACKETS)) {
+		unsigned p1, p2;
+		if (curpos < mtpos) {
+			p1 = curpos;
+			p2 = mtpos;
+		}
+		else {
+			p1 = mtpos;
+			p2 = curpos;
+		}
+		//MessageBoxFree(g_nppData._nppHandle,smprintf("Deleting posStart:%u posEnd:%d",posStart,posEnd),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+		SENDMSGTOCED(currentEdit, SCI_BEGINUNDOACTION, 0, 0);
+		SENDMSGTOCED(currentEdit, SCI_SETTARGETSTART, p2 - 1, 0);
+		SENDMSGTOCED(currentEdit, SCI_SETTARGETEND, p2, 0);
+		SENDMSGTOCED(currentEdit, SCI_REPLACETARGET, 0, 0);
+		SENDMSGTOCED(currentEdit, SCI_SETTARGETSTART, p1, 0);
+		SENDMSGTOCED(currentEdit, SCI_SETTARGETEND, p1 + 1, 0);
+		SENDMSGTOCED(currentEdit, SCI_REPLACETARGET, 0, 0);
+		SENDMSGTOCED(currentEdit, SCI_ENDUNDOACTION, 0, 0);
+	}
 }
-#if 0
-EXTERNC PFUNCPLUGINCMD pfdeletebracepaircontents(void) {
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  unsigned curpos,mtpos; if (bracematch(currentEdit,&curpos,&mtpos,FLAG_INCLUDEBRACKETS)) {
-    unsigned p1,p2;
-    if (curpos<mtpos) {p1=curpos;p2=mtpos;} else {p1=mtpos;p2=curpos;}
-    //MessageBoxFree(g_nppData._nppHandle,smprintf("Deleting p1:%u p2:%d",p1,p2),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-    SENDMSGTOCED(currentEdit, SCI_SETTARGETSTART, p1, 0);
-    SENDMSGTOCED(currentEdit, SCI_SETTARGETEND, p2,0);
-    SENDMSGTOCED(currentEdit, SCI_REPLACETARGET, 0,0);
-  }
-}
-#endif
 
 EXTERNC PFUNCPLUGINCMD pfmarkmatchline(void) {
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  unsigned curpos,mtpos; if (bracematch(currentEdit,&curpos,&mtpos,FLAG_INCLUDEBRACKETS | CAFLAG_EXTENDTOLINES)) SENDMSGTOCED(currentEdit, SCI_SETSEL, curpos, mtpos);
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
+	unsigned curpos, mtpos;
+	if (bracematch(currentEdit, &curpos, &mtpos, FLAG_INCLUDEBRACKETS | CAFLAG_EXTENDTOLINES))
+		SENDMSGTOCED(currentEdit, SCI_SETSEL, curpos, mtpos);
 }
 
 #if ENABLE_AutoShowMatchline
@@ -5451,151 +5712,114 @@ EXTERNC PFUNCPLUGINCMD pfshowmatchline(void) {
 // Sample Javascript result: Response.write("text \" lines");
 // new feature: convert code lines back to text lines, unescaping where necessary. Only will be implemented if there is a need.
 EXTERNC PFUNCPLUGINCMD pfprepostpendlines(void) { // if necessary, the inverse can be implemented as '-'
-  enum LangType docType; SendMessage(g_nppData._nppHandle, NPPM_GETCURRENTLANGTYPE, 0, (LPARAM)&docType);
-  switch(docType) {
-  case L_PHP:
-    convertall('&',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY,"echo \"","\\n\";","c\"\\",";\\\\\\;\"\\\";"); // start, end, search, replace
-    break;
-  case L_C:
-  case L_CPP:
-    convertall('&',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY,"\"","\\n\"","c\"\\",";\\\\\\;\"\\\";"); // start, end, search, replace
-    break;
-  case L_ASP: // used for ASP-VBScript
-    convertall('&',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY,"Response.Write(\"","\"&vbCrLf)","s\"","\"\""); // start, end, search, replace
-    break;
-  case L_JS: // used for ASP-JScript
-    convertall('&',CAFLAG_DENYBLOCK|CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY,"Response.Write(\"","\\n\");","c\"\\",";\\\\\\;\"\\\";"); // start, end, search, replace
-    break;
-  default:
-    MessageBox(g_nppData._nppHandle,
-	  _T("At this time only PHP, ASP (VB & JSP), C, and C++ are supported.\r\n"
-      "At this time ASP is ASP-VBScript and Javascript is ASP-JScript\r\n"
-      "To get Javascript to display correctly, select Python then select Javascript\r\n"
-      "Please select a supported language then select some text lines to convert."),
-		_T(PLUGIN_NAME), MB_OK|MB_ICONINFORMATION);
-    break;
-  }
+	enum LangType docType; SendMessage(g_nppData._nppHandle, NPPM_GETCURRENTLANGTYPE, 0, (LPARAM)&docType);
+	switch (docType) {
+	case L_PHP:
+		convertall(CONVERTALL_CMD_prepostpendlines,
+			CAFLAG_DENYBLOCK | CAFLAG_EXTENDTOLINES | CAFLAG_DENYBINARY,
+			_T("echo \""), _T("\\n\";"), _T("c\"\\"), _T(";\\\\\\;\"\\\";")); // start, end, search, replace
+		break;
+	case L_C:
+	case L_CPP:
+		convertall(CONVERTALL_CMD_prepostpendlines,
+			CAFLAG_DENYBLOCK | CAFLAG_EXTENDTOLINES | CAFLAG_DENYBINARY,
+			_T("\""), _T("\\n\""), _T("c\"\\"), _T(";\\\\\\;\"\\\";")); // start, end, search, replace
+		break;
+	case L_ASP: // used for ASP-VBScript
+		convertall(CONVERTALL_CMD_prepostpendlines,
+			CAFLAG_DENYBLOCK | CAFLAG_EXTENDTOLINES | CAFLAG_DENYBINARY,
+			_T("Response.Write(\""), _T("\"&vbCrLf)"), _T("s\""), _T("\"\"")); // start, end, search, replace
+		break;
+	case L_JS: // used for ASP-JScript
+		convertall(CONVERTALL_CMD_prepostpendlines,
+			CAFLAG_DENYBLOCK | CAFLAG_EXTENDTOLINES | CAFLAG_DENYBINARY,
+			_T("Response.Write(\""), _T("\\n\");"), _T("c\"\\"), _T(";\\\\\\;\"\\\";")); // start, end, search, replace
+		break;
+	default:
+		MessageBox(g_nppData._nppHandle,
+			_T("At this time only PHP, ASP (VB & JSP), C, and C++ are supported.\r\n"
+				"At this time ASP is ASP-VBScript and Javascript is ASP-JScript\r\n"
+				"To get Javascript to display correctly, select Python then select Javascript\r\n"
+				"Please select a supported language then select some text lines to convert."),
+			_T(PLUGIN_NAME), MB_OK | MB_ICONINFORMATION);
+		break;
+	}
 }
 
 EXTERNC PFUNCPLUGINCMD pfinsertasciichart(void) {
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  unsigned i=0,ie=255;
-  size_t chartsz=12000; // arm tools do not require us to get this number right
-  if (SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0)-1==1) {
-    unsigned char tx[2];
-    SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, tx);
-    i=ie=tx[0];
-    chartsz=100;
-  }
-  TCHAR *chart=NULL;
-  size_t chartlen;
-  for(; i<=ie; i++) {
-    char str[6]; char lit[3]; char bin[9];
-    strcpy(lit,"  ");
-    str[0]=i; str[1]='\0';
-    itoa(i,bin,2);
-    switch(i) {
-    case 0: strcpy(str,"%"); strcpy(lit,"\\0"); break; // this % will be replaced with a \0 later!
-    case 7: strcpy(lit,"\\a"); break;
-    case 8: strcpy(lit,"\\b"); break;
-    case 9: strcpy(str,"TAB"); strcpy(lit,"\\t"); break;
-    case 10: strcpy(str,"LF"); strcpy(lit,"\\n"); break;
-    case 11: strcpy(lit,"\\v"); break;
-    case 12: strcpy(lit,"\\f"); break;
-    case 13: strcpy(str,"CR"); strcpy(lit,"\\r"); break;
-    case 32: strcpy(str,"SPACE"); break;
-    case '\"': strcpy(lit,"\\\""); break;
-    case '\\': strcpy(lit,"\\\\"); break;
-    case '\'': strcpy(lit,"\\'"); break;
-    }
-    sarmprintf(&chart, &chartsz, &chartlen, _T("%3u \\x%2.2X (0x%2.2X) \\%-3o (0%-3o) %8s %s %c%c %s\n"), i,i,i,i,i,bin,lit,(i<32?'^':' '),(i<32?(i+64):' '),str);
-    if (!chart) break;
-  }
-  if (chart) {
-    char *p; if ((p=(char *)memchr(chart,'%',chartlen))) *p='\0'; // sarmprintf doesn't handle \0 properly so we'll redact it
-    SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, "");
-    SENDMSGTOCED(currentEdit, SCI_ADDTEXT, chartlen, chart);
-    SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, "");
-    freesafe(chart, _T("pfinsertasciichart"));
-  }
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
+	unsigned i = 0, ie = 255;
+	size_t chartsz = 12000; // arm tools do not require us to get this number right
+	if (SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0) - 1 == 1) {
+		unsigned char tx[2];
+		SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, tx);
+		i = ie = tx[0];
+		chartsz = 100;
+	}
+	TCHAR *chart = NULL;
+	size_t chartlen;
+	for (; i <= ie; i++) {
+		char str[6]; char lit[3]; char bin[9];
+		strcpy(lit, "  ");
+		str[0] = i; str[1] = '\0';
+		itoa(i, bin, 2);
+		switch (i) {
+		case 0: strcpy(str, "%"); strcpy(lit, "\\0"); break; // this % will be replaced with a \0 later!
+		case 7: strcpy(lit, "\\a"); break;
+		case 8: strcpy(lit, "\\b"); break;
+		case 9: strcpy(str, "TAB"); strcpy(lit, "\\t"); break;
+		case 10: strcpy(str, "LF"); strcpy(lit, "\\n"); break;
+		case 11: strcpy(lit, "\\v"); break;
+		case 12: strcpy(lit, "\\f"); break;
+		case 13: strcpy(str, "CR"); strcpy(lit, "\\r"); break;
+		case 32: strcpy(str, "SPACE"); break;
+		case '\"': strcpy(lit, "\\\""); break;
+		case '\\': strcpy(lit, "\\\\"); break;
+		case '\'': strcpy(lit, "\\'"); break;
+		}
+		sarmprintf(&chart, &chartsz, &chartlen, _T("%3u \\x%2.2X (0x%2.2X) \\%-3o (0%-3o) %8s %s %c%c %s\n"), i, i, i, i, i, bin, lit, (i < 32 ? '^' : ' '), (i < 32 ? (i + 64) : ' '), str);
+		if (!chart) break;
+	}
+	if (chart) {
+		char *p; if ((p = (char *)memchr(chart, '%', chartlen))) *p = '\0'; // sarmprintf doesn't handle \0 properly so we'll redact it
+		SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, "");
+		SENDMSGTOCED(currentEdit, SCI_ADDTEXT, chartlen, chart);
+		SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, "");
+		freesafe(chart, _T("pfinsertasciichart"));
+	}
 }
 
 EXTERNC PFUNCPLUGINCMD pfinsertruler(void) {
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  unsigned eoltype=SENDMSGTOCED(currentEdit, SCI_GETEOLMODE, 0, 0);
-  if (eoltype>=NELEM(eoltypes))
-	  eoltype=NELEM(eoltypes)-1;
-  TCHAR *st1=NULL;
-  size_t sz1=103,sl1;
-  TCHAR *st2=NULL;
-  size_t sz2=103,sl2;
-  int i;
-  for(i=0; i<10; i++) {
-    sarmprintf(&st1, &sz1, &sl1, _T("---%3d---|"), i*10);
-    strcpyarmsafe(&st2, &sz2, &sl2, _T("123456789|"), _T("pfinsertruler"));
-    if (!st1 || !st2)
-		goto fail;
-  }
-  sarmprintf(&st1, &sz1, &sl1, _T("%s%s%s"), eoltypes[eoltype],st2,eoltypes[eoltype]);
-  if (st1)
-	  SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, st1);
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
+	unsigned eoltype = SENDMSGTOCED(currentEdit, SCI_GETEOLMODE, 0, 0);
+	if (eoltype >= NELEM(eoltypes))
+		eoltype = NELEM(eoltypes) - 1;
+	TCHAR *st1 = NULL;
+	size_t sz1 = 103, sl1;
+	TCHAR *st2 = NULL;
+	size_t sz2 = 103, sl2;
+	int i;
+	for (i = 0; i < 10; i++) {
+		sarmprintf(&st1, &sz1, &sl1, _T("---%3d---|"), i * 10);
+		strcpyarmsafe(&st2, &sz2, &sl2, _T("123456789|"), _T("pfinsertruler"));
+		if (!st1 || !st2)
+			goto fail;
+	}
+	sarmprintf(&st1, &sz1, &sl1, _T("%s%s%s"), eoltypes[eoltype], st2, eoltypes[eoltype]);
+	if (st1)
+		SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, st1);
 fail:
-  if (st1) freesafe(st1, _T("pfinsertruler"));
-  if (st2) freesafe(st2, _T("pfinsertruler"));
+	if (st1)
+		freesafe(st1, _T("pfinsertruler"));
+	if (st2)
+		freesafe(st2, _T("pfinsertruler"));
 }
-
-#if 0 /* This was fixed in N++ 3.3 */
-EXTERNC PFUNCPLUGINCMD pfextendblock(void) {
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  int p1=SENDMSGTOCED(currentEdit, SCI_GETSELECTIONSTART, 0, 0);
-  int p2=SENDMSGTOCED(currentEdit, SCI_GETSELECTIONEND, 0, 0);
-  int p1l=SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION,p1,0);
-  do {
-    if (SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION,p2,0)!=p1l) {
-      MessageBox(g_nppData._nppHandle,"Only select text on a single line",PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-      break;
-    }
-    p2-=SENDMSGTOCED(currentEdit, SCI_POSITIONFROMLINE,p1l,0);
-    //MessageBoxFree(g_nppData._nppHandle,smprintf("p1:%d p1l:%d p2:%d",p1,p1l,p2),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-
-    int i,boli; for(i=SENDMSGTOCED(currentEdit, SCI_GETLINECOUNT,0,0)-1; i>p1l; i--) {
-      boli=SENDMSGTOCED(currentEdit, SCI_POSITIONFROMLINE,i,0);
-      //MessageBoxFree(g_nppData._nppHandle,smprintf("line-i:%d boli:%d eoli:%d",i,boli,SENDMSGTOCED(currentEdit, SCI_GETLINEENDPOSITION,i,0)),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-      if (SENDMSGTOCED(currentEdit, SCI_GETLINEENDPOSITION,i,0)-boli>=p2) {
-        SENDMSGTOCED(currentEdit, SCI_SETANCHOR,p1, 0);
-        SENDMSGTOCED(currentEdit, SCI_SETSELECTIONMODE,SC_SEL_RECTANGLE, 0);
-        SENDMSGTOCED(currentEdit, SCI_SETCURRENTPOS,p2+boli, 0);
-        //MessageBoxFree(g_nppData._nppHandle,smprintf("p1:%d boli:%d p2+boli:%d",p1,boli,p2+boli),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-        break;
-      }
-    }
-  } while(0);
-}
-#endif
-
-#if 0
-EXTERNC PFUNCPLUGINCMD pfshowstyle(void) {
-        char buf[4];
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  unsigned curpos=SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
-  if (curpos>0) {
-    struct TextRange tr; tr.chrg.cpMin=curpos-1; tr.chrg.cpMax=curpos; tr.lpstrText=buf;
-    SENDMSGTOCED(currentEdit, SCI_GETSTYLEDTEXT, 0, &tr);
-    MessageBoxFree(g_nppData._nppHandle,smprintf("char:%c (%u,%2.2X) style:%u (%2.2X)",buf[0]?buf[0]:'.',buf[0],buf[0],buf[1],buf[1]),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-  }
-}
-#endif
-
-#if 0
-EXTERNC PFUNCPLUGINCMD pffindinotherview(void) {
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  unsigned curpos=SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
-  SENDMSGTOCED(!currentEdit, SCI_GOTOPOS, curpos, 0);
-}
-#endif
 
 EXTERNC PFUNCPLUGINCMD pfswitchseltorectangular(void) {
-	INT_CURRENTEDIT; GET_CURRENTEDIT;
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
 	unsigned curpos = SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
 	unsigned anchor = SENDMSGTOCED(currentEdit, SCI_GETANCHOR, 0, 0);
 	if (anchor != curpos && !SENDMSGTOCED(currentEdit, SCI_SELECTIONISRECTANGLE, 0, 0)) {
@@ -5615,28 +5839,29 @@ EXTERNC PFUNCPLUGINCMD pfhelp(void) {
 }
 // ensure this version number matches those in the Dev-C++ version resource
 EXTERNC PFUNCPLUGINCMD pfabout(void) {
-  MessageBox(g_nppData._nppHandle,
-    _T(PLUGIN_NAME) " " _T(PLUGIN_VERSION) /* "Special " */ " ("
+	MessageBox(g_nppData._nppHandle,
+		_T(PLUGIN_NAME) " " _T(PLUGIN_VERSION) /* "Special " */ " ("
 #if defined(_MSC_VER)
-  _T("Microsoft Visual C++ 2017")
+		_T("Microsoft Visual C++ 2017")
 #else
-  "-unknown-"
+		"-unknown-"
 #endif
-    "), a GNU GPL Plugin for Notepad++ by Chris Severance,\r\n"// and other authors.\r\n"
-    "performs a variety of common conversions on selected text.\r\n"
+		"), a GNU GPL Plugin for Notepad++ by Chris Severance,\r\n"// and other authors.\r\n"
+		"performs a variety of common conversions on selected text.\r\n"
 #if NPPDEBUG
-    "\r\nThis DEBUG edition functions exactly like the non debug but the DLL is larger and you may "
-    "see error boxes pop up if any internal structures are handled incorrectly. These are the programmer's "
-    "fault, not yours, and they will be fixed if you report them. I prefer that feature requests be posted "
-    "to the N++ plugins forum so everyone can add ideas. Bugs should be reported to me so I can look better!\r\n"
-    "severach@users.sourceforge.net"
+		"\r\nThis DEBUG edition functions exactly like the non debug but the DLL is larger and you may "
+		"see error boxes pop up if any internal structures are handled incorrectly. These are the programmer's "
+		"fault, not yours, and they will be fixed if you report them. I prefer that feature requests be posted "
+		"to the N++ plugins forum so everyone can add ideas. Bugs should be reported to me so I can look better!\r\n"
+		"severach@users.sourceforge.net"
 #else
-    /*"\r\n" PLUGIN_NAME " is distributed with Notepad++ but is not a part\r\n"
-    "of Notepad++. Please do not post " PLUGIN_NAME " bugs in the Notepad++\r\n"
-    "bug tracker unless you believe the cause is Notepad++ and not "PLUGIN_NAME "."*/
+		/*"\r\n" PLUGIN_NAME " is distributed with Notepad++ but is not a part\r\n"
+		"of Notepad++. Please do not post " PLUGIN_NAME " bugs in the Notepad++\r\n"
+		"bug tracker unless you believe the cause is Notepad++ and not "PLUGIN_NAME "."*/
 #endif
-    , _T(PLUGIN_NAME), MB_OK|MB_ICONINFORMATION);
+		, _T(PLUGIN_NAME), MB_OK | MB_ICONINFORMATION);
 }
+
 #if NPPDEBUG
 EXTERNC PFUNCPLUGINCMD pfAboutExperimental(void) {
   MessageBox(g_nppData._nppHandle,
@@ -5648,29 +5873,31 @@ EXTERNC PFUNCPLUGINCMD pfAboutExperimental(void) {
 EXTERNC PFUNCPLUGINCMD pfhNotepadweb(void) { LaunchURL(_T("http://notepad-plus.sourceforge.net/")); }
 
 // From PSPAD
-BOOL g_fMarkWordFindCaseSensitive=FALSE,g_fMarkWordFindWholeWord=FALSE;
+BOOL g_fMarkWordFindCaseSensitive = FALSE, g_fMarkWordFindWholeWord = FALSE;
 EXTERNC void MarkWordFind(int dir) {
-  struct TextToFind tr; //MessageBox(0,"???","???",MB_OK);
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  unsigned curpos=SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
-  unsigned p1=SENDMSGTOCED(currentEdit, SCI_GETSELECTIONSTART, 0, 0);
-  unsigned p2=SENDMSGTOCED(currentEdit, SCI_GETSELECTIONEND, 0, 0);
-  unsigned sellen; if ((sellen=SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0))<=1) {
-    unsigned word1=SENDMSGTOCED(currentEdit, SCI_WORDSTARTPOSITION, curpos, TRUE);
-    unsigned word2=SENDMSGTOCED(currentEdit, SCI_WORDENDPOSITION, curpos, TRUE);
-    if (word1 != word2) SENDMSGTOCED(currentEdit, SCI_SETSEL, dir<0?word2:word1,dir<0?word1:word2);
-    //MessageBoxFree(g_nppData._nppHandle,smprintf("sellen:%u word1:%u word2:%u",sellen,word1,word2),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-  } else if ((p1>0 || dir>0) && (tr.lpstrText=(TCHAR *)mallocsafe(sellen, _T("MarkWordFind")))) {
-    SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, tr.lpstrText);
-    tr.chrg.cpMin=dir<0?p1:p2; tr.chrg.cpMax=dir<0?0:SENDMSGTOCED(currentEdit, SCI_GETLENGTH, 0, 0);
-    //MessageBoxFree(g_nppData._nppHandle,smprintf("cpMin:%u cpMax:%u text:%s",tr.chrg.cpMin,tr.chrg.cpMax,tr.lpstrText),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-    int findpos;
-	if ((findpos=SENDMSGTOCED(currentEdit, SCI_FINDTEXT, (g_fMarkWordFindCaseSensitive?SCFIND_MATCHCASE:0)|(g_fMarkWordFindWholeWord?SCFIND_WHOLEWORD:0), &tr))!=-1) {
-      SENDMSGTOCED(currentEdit, SCI_GOTOPOS, dir<0?(findpos+sellen-1):findpos, 0);
-      SENDMSGTOCED(currentEdit, SCI_SETSEL, dir<0?(findpos+sellen-1):findpos,dir<0?findpos:(findpos+sellen-1));
-    } //else MessageBeep(MB_ICONHAND);
-    freesafe(tr.lpstrText, _T("MarkWordFind"));
-  }
+	struct TextToFind tr; //MessageBox(0,"???","???",MB_OK);
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
+	unsigned curpos = SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
+	unsigned p1 = SENDMSGTOCED(currentEdit, SCI_GETSELECTIONSTART, 0, 0);
+	unsigned p2 = SENDMSGTOCED(currentEdit, SCI_GETSELECTIONEND, 0, 0);
+	unsigned sellen; if ((sellen = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0)) <= 1) {
+		unsigned word1 = SENDMSGTOCED(currentEdit, SCI_WORDSTARTPOSITION, curpos, TRUE);
+		unsigned word2 = SENDMSGTOCED(currentEdit, SCI_WORDENDPOSITION, curpos, TRUE);
+		if (word1 != word2)
+			SENDMSGTOCED(currentEdit, SCI_SETSEL, dir < 0 ? word2 : word1, dir < 0 ? word1 : word2);
+		//MessageBoxFree(g_nppData._nppHandle,smprintf("selectionLength:%u word1:%u word2:%u",selectionLength,word1,word2),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+	} else if ((p1 > 0 || dir > 0) && (tr.lpstrText = (TCHAR *)mallocsafe(sellen, _T("MarkWordFind")))) {
+		SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, tr.lpstrText);
+		tr.chrg.cpMin = dir < 0 ? p1 : p2; tr.chrg.cpMax = dir < 0 ? 0 : SENDMSGTOCED(currentEdit, SCI_GETLENGTH, 0, 0);
+		//MessageBoxFree(g_nppData._nppHandle,smprintf("cpMin:%u cpMax:%u text:%s",tr.chrg.cpMin,tr.chrg.cpMax,tr.lpstrText),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+		int findpos;
+		if ((findpos = SENDMSGTOCED(currentEdit, SCI_FINDTEXT, (g_fMarkWordFindCaseSensitive ? SCFIND_MATCHCASE : 0) | (g_fMarkWordFindWholeWord ? SCFIND_WHOLEWORD : 0), &tr)) != -1) {
+			SENDMSGTOCED(currentEdit, SCI_GOTOPOS, dir < 0 ? (findpos + sellen - 1) : findpos, 0);
+			SENDMSGTOCED(currentEdit, SCI_SETSEL, dir < 0 ? (findpos + sellen - 1) : findpos, dir < 0 ? findpos : (findpos + sellen - 1));
+		} //else MessageBeep(MB_ICONHAND);
+		freesafe(tr.lpstrText, _T("MarkWordFind"));
+	}
 }
 EXTERNC PFUNCPLUGINCMD pfMarkWordFindReverse(void) { MarkWordFind(-1); }
 EXTERNC PFUNCPLUGINCMD pfMarkWordFindForward(void) { MarkWordFind(+1); }
@@ -5678,46 +5905,33 @@ EXTERNC PFUNCPLUGINCMD pfMarkWordFindForward(void) { MarkWordFind(+1); }
 #if NPPDEBUG
 // produces hex dumps suitable for source code of function results
 EXTERNC PFUNCPLUGINCMD pfInsertUnicodeCapsTables(void) {
-  unsigned find;
+	unsigned find;
 
-#if 0 /* produce packed binary tables for functions that return BOOL */
-  unsigned obuf[65536/(sizeof(unsigned)*8)];
-  ZeroMemory(obuf,sizeof(obuf));
-  for(find=0; find<65536; find++) if (IsCharAlphaNumericW(find)) obuf[find/(sizeof(unsigned)*8)] |= 1<<find%(sizeof(unsigned)*8);
-#endif
+	wchar_t obuf[65536]; wchar_t temp;
+	ZeroMemory(obuf, sizeof(obuf));
+	for (find = 0; find < 65536; find++) {
+		temp = (wchar_t)(unsigned)CharLowerW((wchar_t *)(unsigned)find);
+		obuf[find] = (temp == (wchar_t)find) ? 0 : temp; /* zeroing the characters that do not convert keeps the table sparse enough to compress */
+	}
 
-#if 1 /* produce wchar_t tables for functions that return wchar_t */
-  wchar_t obuf[65536]; wchar_t temp;
-  ZeroMemory(obuf,sizeof(obuf));
-  for(find=0; find<65536; find++) {
-    temp=(wchar_t)(unsigned)CharLowerW((wchar_t *)(unsigned)find);
-    obuf[find] = (temp==(wchar_t)find)?0:temp; /* zeroing the characters that do not convert keeps the table sparse enough to compress */
-  }
-#endif
-
-  TCHAR *buf=NULL;
-  size_t bufsz=0,buflen;
-  lzo_uint out_len=sizeof(obuf);
-#if 0 /* enable compressed output */
-  unsigned char wrkmem[LZO1X_1_MEM_COMPRESS],quick[sizeof(obuf)];
-  memcpy(quick,obuf,sizeof(quick));
-  ZeroMemory(obuf,sizeof(obuf));
-  if (lzo1x_1_compress(quick,sizeof(quick),(unsigned char *)obuf,&out_len,wrkmem) != LZO_E_OK) MessageBoxFree(g_nppData._nppHandle,smprintf("Compression Failed"),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-  sarmprintf(&buf,&bufsz,&buflen,"0x%8.8x,/* Original length in bytes */\r\n0x%8.8x,/* Compressed length in bytes */",sizeof(quick),out_len);
-#endif
-  for(find=0; find<=out_len/sizeof(unsigned); find++)
-	  sarmprintf(&buf,&bufsz,&buflen, _T("%s0x%8.8x,"), (find%16) ? _T(""): _T("\r\n"), *((unsigned *)obuf+find));
-  if (buf) {
-    INT_CURRENTEDIT; GET_CURRENTEDIT;
-    SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0,buf);
-    freesafe(buf, _T("pfInsertUnicodeCapsTables"));
-  }
+	TCHAR *buf = NULL;
+	size_t bufsz = 0, buflen;
+	lzo_uint out_len = sizeof(obuf);
+	for (find = 0; find <= out_len / sizeof(unsigned); find++)
+		sarmprintf(&buf, &bufsz, &buflen, _T("%s0x%8.8x,"), (find % 16) ? _T("") : _T("\r\n"), *((unsigned *)obuf + find));
+	if (buf) {
+		INT_CURRENTEDIT;
+		GET_CURRENTEDIT;
+		SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, buf);
+		freesafe(buf, _T("pfInsertUnicodeCapsTables"));
+	}
 }
 #endif
 
 EXTERNC void insertCurrentPath(int msg) {
 	char path[MAX_PATH];
-	INT_CURRENTEDIT; GET_CURRENTEDIT;
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
 	SendMessage(g_nppData._nppHandle, msg, 0, (LPARAM)path);
 	SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, path);
 }
@@ -5739,7 +5953,8 @@ EXTERNC void insertDateTime(DWORD format) {
 	dateTime = smprintf(_T("%s %s"), time, date);
 	//dateTime=smprintf("%s %s", date, time); // 2006.05.01 16:31
 	if (dateTime) {
-		INT_CURRENTEDIT; GET_CURRENTEDIT;
+		INT_CURRENTEDIT;
+		GET_CURRENTEDIT;
 		SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, dateTime);
 		freesafe(dateTime, _T("insertDateTime"));
 	}
@@ -5748,18 +5963,21 @@ EXTERNC PFUNCPLUGINCMD pfinsertShortDateTime(void) {insertDateTime(DATE_SHORTDAT
 EXTERNC PFUNCPLUGINCMD pfinsertLongDateTime(void) {insertDateTime(DATE_LONGDATE);}
 
 EXTERNC PFUNCPLUGINCMD pfDuplicateLineOrBlock(void) {
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  TCHAR *sSel;
-  unsigned uSelLen;
-  if (!SENDMSGTOCED(currentEdit, SCI_SELECTIONISRECTANGLE, 0, 0) && (uSelLen=SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0,NULL)-1)>0 && (sSel=(TCHAR *)mallocsafe(uSelLen+1, _T("pfDupLineDown")))) {
-    uSelLen=SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, sSel)-1;
-    unsigned uAnchor=SENDMSGTOCED(currentEdit, SCI_GETSELECTIONEND, 0, 0);
-    SENDMSGTOCED(currentEdit, SCI_GOTOPOS,uAnchor, 0);
-    SENDMSGTOCED(currentEdit, SCI_ADDTEXT, uSelLen,sSel);
-    freesafe(sSel, _T("pfDupLineDown"));
-    SENDMSGTOCED(currentEdit, SCI_SETSEL, uAnchor,uAnchor+uSelLen);
-  } else
-	  SENDMSGTOCED(currentEdit, SCI_LINEDUPLICATE, 0,0);
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
+	TCHAR *sSel;
+	unsigned uSelLen;
+	if (!SENDMSGTOCED(currentEdit, SCI_SELECTIONISRECTANGLE, 0, 0) &&
+		(uSelLen = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, NULL) - 1) > 0 &&
+		(sSel = (TCHAR *)mallocsafe(uSelLen + 1, _T("pfDupLineDown")))) {
+		uSelLen = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, sSel) - 1;
+		unsigned uAnchor = SENDMSGTOCED(currentEdit, SCI_GETSELECTIONEND, 0, 0);
+		SENDMSGTOCED(currentEdit, SCI_GOTOPOS, uAnchor, 0);
+		SENDMSGTOCED(currentEdit, SCI_ADDTEXT, uSelLen, sSel);
+		freesafe(sSel, _T("pfDupLineDown"));
+		SENDMSGTOCED(currentEdit, SCI_SETSEL, uAnchor, uAnchor + uSelLen);
+	} else
+		SENDMSGTOCED(currentEdit, SCI_LINEDUPLICATE, 0, 0);
 }
 
 // SUBSECTION: END
@@ -5842,7 +6060,8 @@ EXTERNC void robotvizinvert(INT_CURRENTEDIT, char reveal, int curline, int L1, i
 }
 
 EXTERNC void vizinvertselectedalllines(char reveal) {
-	INT_CURRENTEDIT; GET_CURRENTEDIT;
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
 	int curpos = SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
 	int curline = SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, curpos, 0);
 	int L2 = curline + 1;
@@ -5943,71 +6162,77 @@ EXTERNC PFUNCPLUGINCMD pfvizinsertsequence(void){
 	  MessageBox(g_nppData._nppHandle, _T("You have not performed any show hide operations since your last Show All-Reset Lines"), _T(PLUGIN_NAME), MB_OK|MB_ICONINFORMATION);
 }
 
-EXTERNC PFUNCPLUGINCMD pfvizshowmorelines(void){
-  MessageBox(g_nppData._nppHandle, _T("Hold down Caps-Lock and move up or down against hidden text.\r\nLine by line the hidden text will be exposed."), _T(PLUGIN_NAME), MB_OK|MB_ICONINFORMATION);
+EXTERNC PFUNCPLUGINCMD pfvizshowmorelines(void) {
+	MessageBox(g_nppData._nppHandle, _T("Hold down Caps-Lock and move up or down against hidden text.\r\nLine by line the hidden text will be exposed."), _T(PLUGIN_NAME), MB_OK | MB_ICONINFORMATION);
 }
 
-EXTERNC PFUNCPLUGINCMD pfvizsequencenext(void){
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
-  int curpos=SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
-  int curline=SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION,curpos,0);
-  unsigned eol=g_uVisPos+ wcscspn(g_pszVizSequence+g_uVisPos, _T("\r\n"));
-  char chtemp=g_pszVizSequence[eol];
-  g_pszVizSequence[eol]='\0'; // allows strdup(void)
-  int L1=0,L2=0;
-  TCHAR *p,*end;
-  char reveal;
-  BOOL complementary=FALSE;
-  unsigned searchflags;
-  //MessageBoxFree(g_nppData._nppHandle,smprintf("Running Command %s",g_pszVizSequence+g_uVisPos),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-  switch(reveal=g_pszVizSequence[g_uVisPos]) {
-  case '\0': break;
-  case '+':
-  case '-':
-  case '!':
-    switch(g_pszVizSequence[g_uVisPos+1]) {
-    case ':':
-      p=g_pszVizSequence+g_uVisPos+2;
-      searchflags=SCFIND_MATCHCASE;
-      if (!(end=wcschr(p,':'))) {
-		  MessageBoxFree(g_nppData._nppHandle,smprintf(_T("Can't find : terminator for search text, be sure to use :: if there are no flags")), _T(PLUGIN_NAME), MB_OK|MB_ICONINFORMATION);
-		  break;
-	  }
-      for(; p<end; p++) switch(*p) {
-        case 'w': searchflags |= SCFIND_WHOLEWORD; break;
-        case 'r': searchflags |= SCFIND_REGEXP; break;
-        case '^': searchflags &= ~SCFIND_MATCHCASE; break;
-        case '!': complementary=TRUE; break;
-      }
-      if (wcslen(end+1))
-		  robothidecliplines(currentEdit,end+1,reveal,complementary,searchflags);
-      break;
-    case '[':
-      if ((p=strdupsafe(g_pszVizSequence+g_uVisPos+1, _T("pfvizsequencenext")))) {
-        unsigned uIndex=0;
-        L1= _wtol(strtokX(p,&uIndex, _T("[-]")));
-        L2= _wtol(strtokX(p,&uIndex, _T("[-]")));
-        freesafe(p, _T("pfvizsequencenext"));
-      }
-    case '*': robotvizinvert(currentEdit,reveal,curline+1,L1,L2); break;
-    default: MessageBoxFree(g_nppData._nppHandle,smprintf(_T("Invalid target %c, try :[*"), *(g_pszVizSequence+g_uVisPos+1)), _T(PLUGIN_NAME), MB_OK|MB_ICONINFORMATION); break;
-    }
-    break;
-  default: MessageBoxFree(g_nppData._nppHandle,smprintf(_T("Invalid reveal %c, try +-!"), reveal), _T(PLUGIN_NAME), MB_OK|MB_ICONINFORMATION); break;
-        }
-        g_pszVizSequence[g_uVisPos=eol]=chtemp;
-        while(g_pszVizSequence[g_uVisPos]=='\r' || g_pszVizSequence[g_uVisPos]=='\n') g_uVisPos++;
-  SENDMSGTOCED(currentEdit, SCI_GOTOPOS, curpos,0);
+EXTERNC PFUNCPLUGINCMD pfvizsequencenext(void) {
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
+	int curpos = SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
+	int curline = SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, curpos, 0);
+	unsigned eol = g_uVisPos + wcscspn(g_pszVizSequence + g_uVisPos, _T("\r\n"));
+	char chtemp = g_pszVizSequence[eol];
+	g_pszVizSequence[eol] = '\0'; // allows strdup(void)
+	int L1 = 0, L2 = 0;
+	TCHAR *p, *end;
+	char reveal;
+	BOOL complementary = FALSE;
+	unsigned searchflags;
+	//MessageBoxFree(g_nppData._nppHandle,smprintf("Running Command %s",g_pszVizSequence+g_uVisPos),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+	switch (reveal = g_pszVizSequence[g_uVisPos]) {
+	case '\0': break;
+	case '+':
+	case '-':
+	case '!':
+		switch (g_pszVizSequence[g_uVisPos + 1]) {
+		case ':':
+			p = g_pszVizSequence + g_uVisPos + 2;
+			searchflags = SCFIND_MATCHCASE;
+			if (!(end = wcschr(p, ':'))) {
+				MessageBoxFree(g_nppData._nppHandle, smprintf(_T("Can't find : terminator for search text, be sure to use :: if there are no flags")), _T(PLUGIN_NAME), MB_OK | MB_ICONINFORMATION);
+				break;
+			}
+			for (; p < end; p++) switch (*p) {
+			case 'w': searchflags |= SCFIND_WHOLEWORD; break;
+			case 'r': searchflags |= SCFIND_REGEXP; break;
+			case '^': searchflags &= ~SCFIND_MATCHCASE; break;
+			case '!': complementary = TRUE; break;
+			}
+			if (wcslen(end + 1))
+				robothidecliplines(currentEdit, end + 1, reveal, complementary, searchflags);
+			break;
+		case '[':
+			if ((p = strdupsafe(g_pszVizSequence + g_uVisPos + 1, _T("pfvizsequencenext")))) {
+				unsigned uIndex = 0;
+				L1 = _wtol(strtokX(p, &uIndex, _T("[-]")));
+				L2 = _wtol(strtokX(p, &uIndex, _T("[-]")));
+				freesafe(p, _T("pfvizsequencenext"));
+			}
+		case '*': robotvizinvert(currentEdit, reveal, curline + 1, L1, L2); break;
+		default: MessageBoxFree(g_nppData._nppHandle, smprintf(_T("Invalid target %c, try :[*"), *(g_pszVizSequence + g_uVisPos + 1)), _T(PLUGIN_NAME), MB_OK | MB_ICONINFORMATION); break;
+		}
+		break;
+	default:
+		MessageBoxFree(g_nppData._nppHandle, smprintf(_T("Invalid reveal %c, try +-!"), reveal), _T(PLUGIN_NAME), MB_OK | MB_ICONINFORMATION);
+		break;
+	}
+	g_pszVizSequence[g_uVisPos = eol] = chtemp;
+	while (g_pszVizSequence[g_uVisPos] == '\r' || g_pszVizSequence[g_uVisPos] == '\n')
+		g_uVisPos++;
+	SENDMSGTOCED(currentEdit, SCI_GOTOPOS, curpos, 0);
 }
 
-EXTERNC PFUNCPLUGINCMD pfvizsequencerest(void){
-        if (!g_pszVizSequence) MessageBox(g_nppData._nppHandle, _T("You have not performed any show hide operations since your last Show All Lines"),
-			_T(PLUGIN_NAME), MB_OK|MB_ICONINFORMATION);
-        else while(g_pszVizSequence[g_uVisPos]) pfvizsequencenext();
+EXTERNC PFUNCPLUGINCMD pfvizsequencerest(void) {
+	if (!g_pszVizSequence) MessageBox(g_nppData._nppHandle, _T("You have not performed any show hide operations since your last Show All Lines"),
+		_T(PLUGIN_NAME), MB_OK | MB_ICONINFORMATION);
+	else
+		while (g_pszVizSequence[g_uVisPos]) pfvizsequencenext();
 }
 
 EXTERNC PFUNCPLUGINCMD pfvizsequencestart(void) {
-	INT_CURRENTEDIT; GET_CURRENTEDIT;
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
 	int curpos = SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
 	g_uVisPos = 0; // we can do this even if the sequence is invalid
 	robotvizinvert(currentEdit, '+', 0, 0, 0);
@@ -6019,25 +6244,27 @@ EXTERNC PFUNCPLUGINCMD pfvizsequenceall(void) {
 	pfvizsequencerest();
 }
 
-EXTERNC PFUNCPLUGINCMD pfvizselectassequence(void){
-  INT_CURRENTEDIT;
-  GET_CURRENTEDIT;
-  TCHAR *rv,*end;
-  unsigned st,ln;
-  if ((st=SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, NULL))>1 && (rv=(TCHAR *)mallocsafe(st, _T("pfvizselectassequence"))) ) {
-        SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, rv);
-    if ((ln=wcslen(rv))) {
-      for(end=rv+ln-1; end>=rv; end--) if (*end=='\r' || *end=='\n') *end='\0';  // trim off eol that the user may or may not have included
-      if ((ln=wcslen(rv))) {
-        if (g_pszVizSequence) freesafe(g_pszVizSequence, _T("pfvizselectassequence"));
-        g_pszVizSequence=rv;
-        g_uVizSz=st;
-        g_uVizLen=ln;
-        strcpyarmsafe(&g_pszVizSequence, &g_uVizSz, &g_uVizLen, _T("\r\n"), _T("pfvizselectassequence")); // guarantee a \r\n ending
-        pfvizsequencestart();
-      }
-    }
-  } else MessageBox(g_nppData._nppHandle, _T("No text selected"), _T(PLUGIN_NAME), MB_OK|MB_ICONSTOP);
+EXTERNC PFUNCPLUGINCMD pfvizselectassequence(void) {
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
+	TCHAR *rv, *end;
+	unsigned st, ln;
+	if ((st = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, NULL)) > 1 && (rv = (TCHAR *)mallocsafe(st, _T("pfvizselectassequence")))) {
+		SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, rv);
+		if ((ln = wcslen(rv))) {
+			for (end = rv + ln - 1; end >= rv; end--)
+				if (*end == '\r' || *end == '\n') *end = '\0';  // trim off eol that the user may or may not have included
+			if ((ln = wcslen(rv))) {
+				if (g_pszVizSequence) freesafe(g_pszVizSequence, _T("pfvizselectassequence"));
+				g_pszVizSequence = rv;
+				g_uVizSz = st;
+				g_uVizLen = ln;
+				strcpyarmsafe(&g_pszVizSequence, &g_uVizSz, &g_uVizLen, _T("\r\n"), _T("pfvizselectassequence")); // guarantee a \r\n ending
+				pfvizsequencestart();
+			}
+		}
+	}
+	else MessageBox(g_nppData._nppHandle, _T("No text selected"), _T(PLUGIN_NAME), MB_OK | MB_ICONSTOP);
 }
 
 // which: *=all lines, +:visible only, -:invisible only
@@ -6060,15 +6287,20 @@ EXTERNC void copycutdeletevisible(unsigned flags, char which) {
 	int p2 = SENDMSGTOCED(currentEdit, SCI_GETSELECTIONEND, 0, 0);
 	if (p1 < p2) {
 		unsigned eoltype = SENDMSGTOCED(currentEdit, SCI_GETEOLMODE, 0, 0);
-		if (eoltype >= NELEM(eoltypes)) eoltype = NELEM(eoltypes) - 1;
-		if (SENDMSGTOCED(currentEdit, SCI_SELECTIONISRECTANGLE, 0, 0)) flags |= SCDS_COPYRECTANGULAR; else flags &= ~SCDS_COPYRECTANGULAR;
+		if (eoltype >= NELEM(eoltypes))
+			eoltype = NELEM(eoltypes) - 1;
+		if (SENDMSGTOCED(currentEdit, SCI_SELECTIONISRECTANGLE, 0, 0))
+			flags |= SCDS_COPYRECTANGULAR; else
+			flags &= ~SCDS_COPYRECTANGULAR;
 		unsigned blockstart = SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, p1, 0);
 		unsigned blocklines = SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, p2, 0) - blockstart + 1;
 		unsigned ln; for (lplen = ln = 0; ln < blocklines; ln++) {
 			int vis = SENDMSGTOCED(currentEdit, SCI_GETLINEVISIBLE, (blockstart + ln), 0);
 			if (which == '*' || (vis && which == '+') || (!vis && which == '-')) {
-				unsigned ls; if ((unsigned)INVALID_POSITION == (ls = SENDMSGTOCED(currentEdit, SCI_GETLINESELSTARTPOSITION, (blockstart + ln), 0))) continue;
-				unsigned le; if ((unsigned)INVALID_POSITION == (le = SENDMSGTOCED(currentEdit, SCI_GETLINESELENDPOSITION, (blockstart + ln), 0))) continue;
+				unsigned ls; if ((unsigned)INVALID_POSITION == (ls = SENDMSGTOCED(currentEdit, SCI_GETLINESELSTARTPOSITION, (blockstart + ln), 0)))
+					continue;
+				unsigned le; if ((unsigned)INVALID_POSITION == (le = SENDMSGTOCED(currentEdit, SCI_GETLINESELENDPOSITION, (blockstart + ln), 0)))
+					continue;
 				if (!lplen || lpe[lplen - 1] != ls) {
 					armreallocsafe((TCHAR **)&lps, &lpssz, (lplen + 1) * sizeof(*lps), ARMSTRATEGY_INCREASE, 0, _T("pfvizcopyvisible"));
 					if (!lps)
@@ -6080,8 +6312,7 @@ EXTERNC void copycutdeletevisible(unsigned flags, char which) {
 					lpe[lplen] = le;
 					lplen++;
 					//MessageBoxFree(g_nppData._nppHandle,smprintf("[%u] %s line:%u from:%u to:%u",lplen,"Added New",blockstart+ln+1,ls,le),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-				}
-				else {
+				} else {
 					lpe[lplen - 1] = le;
 					//MessageBoxFree(g_nppData._nppHandle,smprintf("[%u] %s line:%u from:%u to:%u",lplen,"Appended",blockstart+ln+1,ls,le),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
 				}
@@ -6136,8 +6367,7 @@ EXTERNC void copycutdeletevisible(unsigned flags, char which) {
 			SENDMSGTOCED(currentEdit, SCI_GOTOPOS, curpos, 0);
 			SENDMSGTOCED(currentEdit, SCI_ENDUNDOACTION, 0, 0);
 		}
-	}
-	else {
+	} else {
 		//failmessage: ;
 			//MessageBox(g_nppData._nppHandle,"No text selected",PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
 	}
@@ -6177,7 +6407,9 @@ EXTERNC void VizPaste(unsigned flags) {
 		(g_fVizPasteToEditorEOL ? SCDS_PASTETOEDITOREOL : 0) |
 		(IsScintillaUnicode(currentEdit) ? SCDS_UNICODEMODE : 0)
 		, SENDMSGTOCED(currentEdit, SCI_GETEOLMODE, 0, 0), &isrectangular))) {
-		int curpos = 0; if (g_fVizPasteRetainsPosition) curpos = SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
+		int curpos = 0;
+		if (g_fVizPasteRetainsPosition)
+			curpos = SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
 		if (isrectangular) {
 			SENDMSGTOCED(currentEdit, SCI_PASTE, 0, 0); // we can't handle binary rectangular text and may never need to
 		} else {
@@ -6281,17 +6513,11 @@ EXTERNC PFUNCPLUGINCMD pfpopposition(void){
 
 // SUBSECTION: Multiplex Subclass Menu System
 #define PFUNCPLUGINCMX void __cdecl /* Some compilers cannot use the typedef in every case. This define works to alter function declarations with all compilers */
-#if !defined(__WATCOMC__) || defined(__cplusplus)
 typedef void (__cdecl PFUNCPLUGINCMX_MSC)(unsigned); /* MSC is unable to declare variables without a typedef. Compilers other than Watcom prefer this method also but often work with warnings with the #define. */
-#else
-#define PFUNCPLUGINCMX_MSC PFUNCPLUGINCMX /* Watcom C does not allow conversion between typedefs and nontypedefs whether or not they are identical. */
-#endif
 #define PFUNCPLUGINCMY USHORT __cdecl /* Some compilers cannot use the typedef in every case. This define works to alter function declarations with all compilers */
-#if !defined(__WATCOMC__) || defined(__cplusplus)
+
 typedef USHORT (__cdecl PFUNCPLUGINCMY_MSC)(unsigned,unsigned); /* MSC is unable to declare variables without a typedef. Compilers other than Watcom prefer this method also but often work with warnings with the #define. */
-#else
-#define PFUNCPLUGINCMY_MSC PFUNCPLUGINCMY /* Watcom C does not allow conversion between typedefs and nontypedefs whether or not they are identical. */
-#endif
+
 extern struct _wIDLOOKUP {
 	PFUNCPLUGINCMD_MSC *_pFunc;
 	PFUNCPLUGINCMX_MSC *buildfunc;
@@ -6640,28 +6866,9 @@ EXTERNC PFUNCPLUGINCMD pfdisplaywIDlookup(void) {
 }
 
 EXTERNC PFUNCPLUGINCMD pfdisplaywIDtest(void) {
-#if 0
-	INT_CURRENTEDIT; GET_CURRENTEDIT;
-	char *t;
-	int i; for (i = 1; i < 1000; i += 7) {
-		if (i & 1)
-			mallocIDLOOKUP(0, 10);
-		else if (i & 2)
-			mallocIDLOOKUP(0, 20);
-		if (i & 4)
-			mallocIDLOOKUP(1, 20);
-		else if (i & 8)
-			mallocIDLOOKUP(1, 10);
-		USHORT mn0 = g_wIDlookup[0].wParamLo, mx0 = mn0 + g_wIDlookup[0].len - 1, mn1 = g_wIDlookup[1].wParamLo, mx1 = mn1 + g_wIDlookup[1].len - 1;
-		if (mn0 && mn1) {
-			if (mn0 >= mn1 && mn0 <= mx1 || mx0 >= mn1 && mx0 <= mx1) { t = smprintf("Fail mn0:%u mx0:%u mn1:%u mx1:%u", mn0, mx0, mn1, mx1); SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, t); freesafe(t, "pfdisplaywIDtest"); break; }
-		}
-	}
-#endif
-	buildallIDLOOKUP(); pfdisplaywIDlookup();//mallocIDLOOKUP(0,20);
-#if 0
-	mallocIDLOOKUP(1, 20); pfdisplaywIDlookup(); mallocIDLOOKUP(1, 10); mallocIDLOOKUP(0, 20); pfdisplaywIDlookup(); mallocIDLOOKUP(1, 20); mallocIDLOOKUP(0, 10);
-#endif
+	buildallIDLOOKUP();
+	pfdisplaywIDlookup();
+	//mallocIDLOOKUP(0,20);
 	pfdisplaywIDlookup();
 }
 #endif
@@ -6689,13 +6896,14 @@ EXTERNC BOOL altercheck(int itemno, char action) {
 // these are used to instantly access the menu items
 unsigned g_miSortAscending;
 EXTERNC PFUNCPLUGINCMD pfSortAscending(void)    {altercheck(g_miSortAscending,'!');}
-EXTERNC PFUNCPLUGINCMD pfqsortlinesnc(void)   { convertall('q',CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY,"n",funcItem[g_miSortAscending]._init2Check?"a":"d",NULL,NULL); }
-EXTERNC PFUNCPLUGINCMD pfqsortlinesc(void)    { convertall('q',CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY,"c",funcItem[g_miSortAscending]._init2Check?"a":"d",NULL,NULL); }
+EXTERNC PFUNCPLUGINCMD pfqsortlinesnc(void)   { convertall('q', CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY, _T("n"), funcItem[g_miSortAscending]._init2Check ? _T("a") : _T("d"), NULL, NULL); }
+EXTERNC PFUNCPLUGINCMD pfqsortlinesc(void)    { convertall('q', CAFLAG_EXTENDTOLINES|CAFLAG_DENYBINARY, _T("c"), funcItem[g_miSortAscending]._init2Check ? _T("a") : _T("d"), NULL, NULL); }
 
 unsigned g_miBlockOverwrite;
 EXTERNC PFUNCPLUGINCMD pfBlockOverwrite(void) {
 	if (altercheck(g_miBlockOverwrite, '!')) {
-		INT_CURRENTEDIT; GET_CURRENTEDIT;
+		INT_CURRENTEDIT;
+		GET_CURRENTEDIT;
 		SENDMSGTOCED(currentEdit, SCI_SETOVERTYPE, 0, 0);
 	}
 }
@@ -7067,7 +7275,8 @@ extern "C" BOOL menuwalk(char chCmd, BOOL fRecurse, HMENU hmn, struct _MENUWALK 
 EXTERNC PFUNCPLUGINCMD pfshowmenuinfo(void) {
 	struct _MENUWALK mx;
 	mx.szBuf = NULL; mx.cbBuf = 512;
-	INT_CURRENTEDIT; GET_CURRENTEDIT;
+	INT_CURRENTEDIT;
+	GET_CURRENTEDIT;
 	menuwalk('d', TRUE, GetMenu(g_nppData._nppHandle), &mx);
 	if (mx.szBuf) {
 		SENDMSGTOCED(currentEdit, SCI_REPLACESEL, 0, mx.szBuf);
@@ -7422,7 +7631,8 @@ EXTERNC PFUNCPLUGINCMD pfSave(void) {
 	if (!wcschr(path, ':')) {
 		MessageBox(g_nppData._nppHandle, path, _T("No file name, can't save!"), MB_OK);
 	} else {
-		INT_CURRENTEDIT; GET_CURRENTEDIT;
+		INT_CURRENTEDIT;
+		GET_CURRENTEDIT;
 		unsigned fFileFormat = 1;
 		if (IsMenuItemChecked(g_mFormatSubmenu, ANSImenubaritem, TRUE))
 			fFileFormat = 1;
@@ -7534,7 +7744,8 @@ EXTERNC PFUNCPLUGINCMD pfReLoad(void) {
 	if (!wcschr(path, ':')) {
 		MessageBox(g_nppData._nppHandle, path, _T("No file name, can't reload!"), MB_OK);
 	} else {
-		INT_CURRENTEDIT; GET_CURRENTEDIT;
+		INT_CURRENTEDIT;
+		GET_CURRENTEDIT;
 		SENDMSGTOCED(currentEdit, SCI_CLEARALL, 0, 0);
 		ShowWindow((currentEdit) ? g_nppData._scintillaSecondHandle : g_nppData._scintillaMainHandle, SW_HIDE); // this blocks all WM_PAINT for the entire LOAD
 		SENDMSGTOCED(currentEdit, SCI_SETUNDOCOLLECTION, FALSE, 0);
@@ -7572,33 +7783,33 @@ EXTERNC PFUNCPLUGINCMD pftemp(void) {
   //if (XMLOpen(&mx,"c:\\Program Files\\Notepad++\\config.xml",O_RDONLY,O_DENYWRITE)) {
      //XMLClose(&mx);
   //}
-  INT_CURRENTEDIT; GET_CURRENTEDIT;
+  INT_CURRENTEDIT;
+  GET_CURRENTEDIT;
   //int codepage=SENDMSGTOCED(currentEdit, SCI_GETCODEPAGE, 0, 0); MessageBoxFree(g_nppData._nppHandle,smprintf("CP:%d",codepage),PLUGIN_NAME, MB_OK|MB_ICONWARNING);
   //SENDMSGTOCED(currentEdit, SCI_SETCODEPAGE, 437, 0);
 }
 #endif
 
-// CTRL ALT SHIFT
-//#if (NPPFUNCITEMARRAYVERSION >= 2)
-struct ShortcutKey skMarkWordFindReverse={TRUE,TRUE,FALSE,VK_LEFT};
-struct ShortcutKey skMarkWordFindForward={TRUE,TRUE,FALSE,VK_RIGHT};
-struct ShortcutKey skfindmatchchar={TRUE,FALSE,FALSE,'B'};
-struct ShortcutKey skmarkmatchchar={TRUE,FALSE,TRUE,'B'};
-struct ShortcutKey skdeletebracepair={TRUE,TRUE,FALSE,'B'};
-//struct ShortcutKey skdeletebracepaircontents={TRUE,TRUE,TRUE,'B'};
-struct ShortcutKey skmarkmatchline={TRUE,TRUE,TRUE,'B'};
-struct ShortcutKey skcopyallnoappend={TRUE,FALSE,FALSE,'C'};
-struct ShortcutKey skcopyallappend={TRUE,FALSE,TRUE,'C'};
-struct ShortcutKey skcutallnoappend={TRUE,FALSE,FALSE,'X'};
-struct ShortcutKey skcutallappend={TRUE,FALSE,TRUE,'X'};
-struct ShortcutKey skVizPasteUNICODE={TRUE,FALSE,FALSE,'V'};
-struct ShortcutKey skindentlines={FALSE,FALSE,FALSE,VK_TAB};
+// Hotkey definitions:
+//                                        CTRL ALT SHIFT
+struct ShortcutKey skMarkWordFindReverse = { TRUE,TRUE,FALSE,VK_LEFT };
+struct ShortcutKey skMarkWordFindForward = { TRUE,TRUE,FALSE,VK_RIGHT };
+struct ShortcutKey skfindmatchchar = { TRUE,FALSE,FALSE,'B' };
+struct ShortcutKey skmarkmatchchar = { TRUE,FALSE,TRUE,'B' };
+struct ShortcutKey skdeletebracepair = { TRUE,TRUE,FALSE,'B' };
+struct ShortcutKey skmarkmatchline = { TRUE,TRUE,TRUE,'B' };
+struct ShortcutKey skcopyallnoappend = { TRUE,FALSE,FALSE,'C' };
+struct ShortcutKey skcopyallappend = { TRUE,FALSE,TRUE,'C' };
+struct ShortcutKey skcutallnoappend = { TRUE,FALSE,FALSE,'X' };
+struct ShortcutKey skcutallappend = { TRUE,FALSE,TRUE,'X' };
+struct ShortcutKey skVizPasteUNICODE = { TRUE,FALSE,FALSE,'V' };
+struct ShortcutKey skindentlines = { FALSE,FALSE,FALSE,VK_TAB };
 #if ENABLE_FINDREPLACE
-struct ShortcutKey skfindreplace={TRUE,FALSE,FALSE,'R'};
+struct ShortcutKey skfindreplace = { TRUE,FALSE,FALSE,'R' };
 #endif
-struct ShortcutKey skinsertShortDateTime={TRUE,FALSE,FALSE,VK_F5};
+struct ShortcutKey skinsertShortDateTime = { TRUE,FALSE,FALSE,VK_F5 };
 //#endif
-struct ShortcutKey skDuplicateLineOrBlock={TRUE,FALSE,FALSE,'D'};
+struct ShortcutKey skDuplicateLineOrBlock = { TRUE,FALSE,FALSE,'D' };
 
 
 // This is the list of menu items and the functions doing the actual work.
@@ -7859,13 +8070,18 @@ extern "C" __declspec(dllexport) void setInfo(struct NppData notpadPlusData) {
 }
 
 // The getName function tells Notepad++ plugins system its name
+// NOTE: If not using TextFX as main menu item, this is what Plugins-menu will display.
+// NOTE 2: If using TextFX as main menu item, this will be the first menu item in TextFX.
 extern "C" __declspec(dllexport) const NPPCHAR * getName(void) {
   //MessageBox(0 , "getName",PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
-  return PLUGIN_NAME_MENU
+	return PLUGIN_NAME_MENU
 #if NPPDEBUG /* { */
-  NPPTEXT(" (debug)")
+		NPPTEXT(" (debug)")
 #endif /* } */
-  NPPTEXT(" Characters");
+#if TEXTFX_TOP_MENU
+		NPPTEXT(" Characters")
+#endif
+		;
 }
 
 // The getFuncsArray function gives Notepad++ plugins system the pointer FuncItem Array
@@ -7933,11 +8149,11 @@ extern "C" __declspec(dllexport) void beNotified(struct SCNotification *notifyCo
 
 		switch (notifyCode->nmhdr.code) {
 		case SCN_UPDATEUI:
-			kscapital=(GetAsyncKeyState(VK_CAPITAL)&0x8000)?TRUE:FALSE;
+			kscapital = (GetAsyncKeyState(VK_CAPITAL) & 0x8000) ? TRUE : FALSE;
 			if (funcItem[g_miBlockOverwrite]._init2Check || kscapital) {
 				GET_CURRENTEDIT;
 				unsigned curpos=SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
-				unsigned curline=SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION,curpos,0);
+				unsigned curline=SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, curpos,0);
 				if (prevline!=curline) {
 					if (funcItem[g_miBlockOverwrite]._init2Check && SENDMSGTOCED(currentEdit, SCI_GETOVERTYPE, 0, 0)) {
 						SENDMSGTOCED(currentEdit, SCI_SETOVERTYPE, 0, 0);
@@ -7978,7 +8194,7 @@ acb:
 							GET_CURRENTEDIT;
 							unsigned curpos=SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
 							unsigned curposl=SENDMSGTOCED(currentEdit, SCI_LINEFROMPOSITION, curpos, 0);
-            //if (curpos!=SENDMSGTOCED(currentEdit, SCI_GETLINEENDPOSITION, curposl, 0)) break; // can only autoclose at end of line http://www.textpad.info/forum/viewtopic.php?t=2838
+							//if (currentPos!=SENDMSGTOCED(currentEdit, SCI_GETLINEENDPOSITION, curposl, 0)) break; // can only autoclose at end of line http://www.textpad.info/forum/viewtopic.php?t=2838
 							TCHAR *buf=NULL;
 							size_t bufsz=2,buflen;
 							if (chPerformKey=='{') {
@@ -7990,12 +8206,12 @@ acb:
 									break;
 								buflen += SENDMSGTOCED(currentEdit, SCI_GETLINE,curposl,buf+buflen);
 								buf[buflen]='\0';
-              //MessageBoxFree(g_nppData._nppHandle,smprintf("reqbufsz:%u bufsz:%u buflen:%u strlen:%u\r\n%s",extra+SENDMSGTOCED(currentEdit, SCI_GETLINE,curposl,NULL)+1,bufsz,buflen,strlen(buf),buf),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+								//MessageBoxFree(g_nppData._nppHandle,smprintf("reqbufsz:%u bufsz:%u buflen:%u strlen:%u\r\n%s",extra+SENDMSGTOCED(currentEdit, SCI_GETLINE,curposl,NULL)+1,bufsz,buflen,strlen(buf),buf),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
 								buflen=extra + wcsspn(buf+extra, _T(" \t"));
 								strcpyarmsafe(&buf, &bufsz, &buflen, rch, _T("scNotify-acb"));
 								if (!buf)
 									break;
-              SENDMSGTOCED(currentEdit, SCI_GOTOPOS, SENDMSGTOCED(currentEdit, SCI_GETLINEENDPOSITION,curposl,0), 0);
+								SENDMSGTOCED(currentEdit, SCI_GOTOPOS, SENDMSGTOCED(currentEdit, SCI_GETLINEENDPOSITION,curposl,0), 0);
 							} else {
 								strcpyarmsafe(&buf, &bufsz, &buflen, rch, _T("scNotify-acb"));
 							if (!buf)
@@ -8006,7 +8222,7 @@ acb:
 							SENDMSGTOCED(currentEdit, SCI_GOTOPOS, curpos, 0);
 							SENDMSGTOCED(currentEdit, SCI_ENDUNDOACTION, 0, 0);
 							freesafe(buf, _T("acb"));
-						}
+						} // end if () doctype PHP, C, C++, C#, ObjC, Java, Asp, SQL, JavaScript, Perl, Lua, Flash (ActiveScript)
 					}
 					break;
 				case '>': // Autoclose HTML tag
@@ -8026,11 +8242,11 @@ act2:
 #define SZPREFIX CHARSIZE(2) /* sizeof("<\"); */
 								TCHAR *buf=NULL;
 								size_t bufsz = SZPREFIX + curpos - bktpos + 1, buflen;
-              //MessageBoxFree(g_nppData._nppHandle,smprintf("curpos:%u bktpos:%u curpos-bktpos+%u+1:%u bufsz:%u buflen:%u",curpos,bktpos,SZPREFIX,curpos-bktpos+SZPREFIX+1,bufsz,buflen),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+              //MessageBoxFree(g_nppData._nppHandle,smprintf("currentPos:%u bktpos:%u currentPos-bktpos+%u+1:%u bufsz:%u buflen:%u",currentPos,bktpos,SZPREFIX,currentPos-bktpos+SZPREFIX+1,bufsz,buflen),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
 								strcpyarmsafe(&buf, &bufsz, &buflen, _T("</"), _T("scNotify-act2"));
 								if (!buf)
 									break;
-              //MessageBoxFree(g_nppData._nppHandle,smprintf("curpos:%u bktpos:%u curpos-bktpos+%u+1:%u bufsz:%u buflen:%u strlen:%u\r\n%s",curpos,bktpos,SZPREFIX,curpos-bktpos+SZPREFIX+1,bufsz,buflen,strlen(buf),buf),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+              //MessageBoxFree(g_nppData._nppHandle,smprintf("currentPos:%u bktpos:%u currentPos-bktpos+%u+1:%u bufsz:%u buflen:%u strlen:%u\r\n%s",currentPos,bktpos,SZPREFIX,currentPos-bktpos+SZPREFIX+1,bufsz,buflen,strlen(buf),buf),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
 								struct TextRange tr;
 								tr.chrg.cpMin=bktpos;
 								tr.chrg.cpMax=curpos;
@@ -8044,7 +8260,7 @@ act2:
 									  && memicmp(buf+2,"LINK",4)
 									  && memicmp(buf+2,"IMG",3)
 									  && !strchr("/%?!",buf[2])  /* prevent from close and special tags */ ) {
-                //MessageBoxFree(g_nppData._nppHandle,smprintf("curpos:%u bktpos:%u curpos-bktpos+%u+1:%u bufsz:%u buflen:%u strlen:%u\r\n%s",curpos,bktpos,SZPREFIX,curpos-bktpos+SZPREFIX+1,bufsz,buflen,strlen(buf),buf),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+                //MessageBoxFree(g_nppData._nppHandle,smprintf("currentPos:%u bktpos:%u currentPos-bktpos+%u+1:%u bufsz:%u buflen:%u strlen:%u\r\n%s",currentPos,bktpos,SZPREFIX,currentPos-bktpos+SZPREFIX+1,bufsz,buflen,strlen(buf),buf),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
 									TCHAR *sp;
 									if ((sp=wcschr(buf+2,' ')))
 										wcscpy(sp, _T(">"));
@@ -8084,7 +8300,7 @@ acH:
 								char *t;
 								if ((t=(char *)mallocsafe(curpos-bol, _T("scNotify-acH")))) {
 									int sln=SENDMSGTOCED(currentEdit, SCI_GETCURLINE,curpos-bol,t);
-                //MessageBoxFree(g_nppData._nppHandle,smprintf("curpos-1:%u bol:%u curpos-bol:%u test:%u lastchs:%d:%d:%d:%d:%d\r\n%s",curpos-1,bol,curpos-bol,test,t[curpos-bol-1],t[curpos-bol],t[curpos-bol+1],t[curpos-bol+2],t[curpos-bol+3],t),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+                //MessageBoxFree(g_nppData._nppHandle,smprintf("currentPos-1:%u bol:%u currentPos-bol:%u test:%u lastchs:%d:%d:%d:%d:%d\r\n%s",currentPos-1,bol,currentPos-bol,test,t[currentPos-bol-1],t[currentPos-bol],t[currentPos-bol+1],t[currentPos-bol+2],t[currentPos-bol+3],t),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
 									char *tx;
 									for(tx=t+sln-1; tx>=t; tx--)
 										if (*tx=='<') {
@@ -8123,7 +8339,7 @@ acH:
 								SENDMSGTOCED(currentEdit, SCI_ENDUNDOACTION, 0, 0);
 							}
 						}
-					}
+					} // end if auto convert HTML entities
 					break;
 				} // end switch switch(chPerformKey)
 				chPerformKey='\0';
@@ -8143,7 +8359,7 @@ acH:
 					if (!(buf=(TCHAR *)mallocsafe(bufsz, _T("scNotify-space"))))
 						break;
 					int tabwidth;
-					if (SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0) && (tabwidth=SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0)) /*&& curpos-bol<sizeof(buf)*/) {
+					if (SENDMSGTOCED(currentEdit, SCI_GETUSETABS, 0, 0) && (tabwidth=SENDMSGTOCED(currentEdit, SCI_GETTABWIDTH, 0, 0)) /*&& currentPos-bol<sizeof(buf)*/) {
 						struct TextRange tr;
 						tr.chrg.cpMin=bol;
 						tr.chrg.cpMax=curpos;
@@ -8155,7 +8371,7 @@ acH:
 							for(d=buf,curposcol=0; *d && curpos!=(unsigned)-1; curposcol+=(*d=='\t'?tabwidth:1),d++,curpos--);
 							if (space2tabs(&buf, &bufsz, &buflen, 1, tabwidth, 1)) {
 								for(d=buf; *d && curposcol>0; curposcol-=(*d=='\t'?tabwidth:1),d++);
-              //MessageBoxFree(g_nppData._nppHandle,smprintf("curpos:%d bol:%d curposcol:%d cpmin:%d cpmax:%d buf\r\n%s",curpos,bol,curposcol,tr.chrg.cpMin,tr.chrg.cpMax,tr.lpstrText),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
+              //MessageBoxFree(g_nppData._nppHandle,smprintf("currentPos:%d bol:%d curposcol:%d cpmin:%d cpmax:%d buf\r\n%s",currentPos,bol,curposcol,tr.chrg.cpMin,tr.chrg.cpMax,tr.lpstrText),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
 									SENDMSGTOCED(currentEdit, SCI_BEGINUNDOACTION, 0, 0);
 									SENDMSGTOCED(currentEdit, SCI_SETTARGETSTART, tr.chrg.cpMin, 0);
 									SENDMSGTOCED(currentEdit, SCI_SETTARGETEND, tr.chrg.cpMax, 0);
@@ -8270,7 +8486,6 @@ BOOL APIENTRY DllMain(HINSTANCE hInst, DWORD reason, LPVOID lpvReserved) {
     //freesafe(g_pszPluginpath,"DllMain-g_pszPluginpath");
     if (g_pszVizSequence)
 		freesafe(g_pszVizSequence, _T("DllMain"));
-    CapsTablesWStop(1);
 #if ENABLE_TIDYDLL
     control_tidy(TRUE);
     if (g_szTidyDLL_error) freesafe(g_szTidyDLL_error,"DllMain-g_szTidyDLL_error");

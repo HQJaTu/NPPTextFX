@@ -11,10 +11,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-unsigned UTF8FromUCS2(const wchar_t *,unsigned int,char *,unsigned int,int);
-unsigned UTF8Validated(const TCHAR *, unsigned int, TCHAR *, unsigned int,unsigned *);
-unsigned int UCS2FromUTF8(const TCHAR *,unsigned int,wchar_t *,unsigned int,int,unsigned int *);
-int isUTF8_16(const TCHAR *, unsigned int,unsigned *);
+unsigned UTF8FromUCS2(const wchar_t *, unsigned int, char *, unsigned int, int);
+unsigned UTF8Validated(const TCHAR *, unsigned int, TCHAR *, unsigned int, unsigned *);
+unsigned int UCS2FromUTF8(const char *, unsigned int, wchar_t *, unsigned int, int, unsigned int *);
+int isUTF8_16(const TCHAR *, unsigned int, unsigned *);
 #ifdef __cplusplus
 }
 #endif

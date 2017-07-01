@@ -19,7 +19,6 @@
 #include <wchar.h>
 #include <tchar.h>            // for _tcsstr (strstr for Unicode & non-Unicode)
 //#include <stdlib.h>
-#include /*..*/"capstables.h"
 #include /*..*/"PluginInterface.h"
 #include /*..*/"MicroXML/MicroXML.h"
 
@@ -1232,104 +1231,110 @@ static int SCI_ReplaceTargetW(HWND hwndEditor,unsigned uTextLenW,wchar_t *sTextW
 // returns 0 if replace did not occur
 // 1 if replace occured but failed due to recursion restrictions
 // 2 if replace occured and there was no failure
-static int PopFindReplaceText(LPFINDREPLACEX pfr,BOOL fUnify) {
-  unsigned epTargStart,epTargEnd;
-  if ((pfr->InternalFlags&FRI_NOTFOUND)) {
-    SetWindowText(GetDlgItem(pfr->hwndSelf,stc1), _T("Must Find first."));
-    goto fail;
-  }
-  if (pfr->InternalFlags&FRI_INVISIBLE) {
-    epTargStart=pfr->eprpHead;
-    epTargEnd=pfr->eprpTail;
-    if (epTargStart>epTargEnd) {
-      epTargStart=epTargEnd;
-      epTargEnd=pfr->eprpHead;
-    }
-  } else {
-    epTargStart=SENDMSGTOED(pfr->hwndEditor, SCI_GETSELECTIONSTART, 0, 0);
-    epTargEnd=SENDMSGTOED(pfr->hwndEditor, SCI_GETSELECTIONEND, 0, 0);
-  } // always: epTargStart<epTargEnd
-  if (epTargStart==epTargEnd) {
-    SetWindowText(GetDlgItem(pfr->hwndSelf,stc1), _T("Replace requires selected text."));
-fail:
-    pfr->InternalFlags|=FRI_NOTFOUND;
-    EnableFindButtons(pfr,pfr->hwndSelf,pfr->wFindWhatLen?TRUE:FALSE);
-    MessageBeep(MB_ICONHAND);
-    return 0;
-  } else {
-    SENDMSGTOED(pfr->hwndEditor, SCI_SETTARGETSTART,epTargStart, 0);
-    SENDMSGTOED(pfr->hwndEditor, SCI_SETTARGETEND  ,epTargEnd, 0);
+static int PopFindReplaceText(LPFINDREPLACEX pfr, BOOL fUnify) {
+	unsigned epTargStart, epTargEnd;
+	if ((pfr->InternalFlags&FRI_NOTFOUND)) {
+		SetWindowText(GetDlgItem(pfr->hwndSelf, stc1), _T("Must Find first."));
+		goto fail;
+	}
+	if (pfr->InternalFlags&FRI_INVISIBLE) {
+		epTargStart = pfr->eprpHead;
+		epTargEnd = pfr->eprpTail;
+		if (epTargStart > epTargEnd) {
+			epTargStart = epTargEnd;
+			epTargEnd = pfr->eprpHead;
+		}
+	}
+	else {
+		epTargStart = SENDMSGTOED(pfr->hwndEditor, SCI_GETSELECTIONSTART, 0, 0);
+		epTargEnd = SENDMSGTOED(pfr->hwndEditor, SCI_GETSELECTIONEND, 0, 0);
+	} // always: epTargStart<epTargEnd
+	if (epTargStart == epTargEnd) {
+		SetWindowText(GetDlgItem(pfr->hwndSelf, stc1), _T("Replace requires selected text."));
+	fail:
+		pfr->InternalFlags |= FRI_NOTFOUND;
+		EnableFindButtons(pfr, pfr->hwndSelf, pfr->wFindWhatLen ? TRUE : FALSE);
+		MessageBeep(MB_ICONHAND);
+		return 0;
+	}
+	else {
+		SENDMSGTOED(pfr->hwndEditor, SCI_SETTARGETSTART, epTargStart, 0);
+		SENDMSGTOED(pfr->hwndEditor, SCI_SETTARGETEND, epTargEnd, 0);
 #define CASEMIXED 0 /* same as CASEUNKNOWN */
 #define CASEUPPER 1
 #define CASELOWER 2
-    unsigned uFindCase=CASEMIXED;
-    if (pfr->PersistentFlags&FRP_REPLCASE) { // identify the caseness of the find text
-      unsigned vLen; void *vBuf=strdupSCI_GetTargetTextAW(pfr->hwndEditor,(pfr->InternalFlags&FRI_UNICODE),0,NULL,&vLen);
-      if (vBuf) {
-        unsigned uUpChars=0,uLowChars=0;
-        if (pfr->InternalFlags&FRI_UNICODE) {
+		unsigned uFindCase = CASEMIXED;
+		if (pfr->PersistentFlags&FRP_REPLCASE) { // identify the caseness of the find text
+			unsigned vLen; void *vBuf = strdupSCI_GetTargetTextAW(pfr->hwndEditor, (pfr->InternalFlags&FRI_UNICODE), 0, NULL, &vLen);
+			if (vBuf) {
+				unsigned uUpChars = 0, uLowChars = 0;
+				if (pfr->InternalFlags&FRI_UNICODE) {
 #define sFoundTextW ((wchar_t *)vBuf)
-          if (CapsTablesWStart(sizeof(wchar_t))) {
-            unsigned i; for(i=0; i<vLen; i++) {
-              if (IsCharUpperXW(sFoundTextW[i])) uUpChars++;
-              else if (IsCharLowerXW(sFoundTextW[i])) uLowChars++;
-            }
-            CapsTablesWStop(0);
-          }
+					unsigned i; for (i = 0; i < vLen; i++) {
+						if (IsCharUpperW(sFoundTextW[i]))
+							uUpChars++;
+						else if (IsCharLowerW(sFoundTextW[i]))
+							uLowChars++;
+					}
 #undef sFoundTextW
-        } else {
+				}
+				else {
 #define sFoundTextA ((char *)vBuf)
-          unsigned i; for(i=0; i<vLen; i++) {
-            if (IsCharUpperA(sFoundTextA[i])) uUpChars++;
-            else if (IsCharLowerA(sFoundTextA[i])) uLowChars++;
-          }
+					unsigned i; for (i = 0; i < vLen; i++) {
+						if (IsCharUpperA(sFoundTextA[i]))
+							uUpChars++;
+						else if (IsCharLowerA(sFoundTextA[i]))
+							uLowChars++;
+					}
 #undef sFoundTextA
-        }
-        if (uUpChars && !uLowChars) uFindCase=CASEUPPER;
-        else if (uLowChars && !uUpChars) uFindCase=CASELOWER;
-        freesafe(vBuf, _T("PopFindReplaceText"));
-      }
-    }
-    if (fUnify) SENDMSGTOED(pfr->hwndEditor, SCI_BEGINUNDOACTION,0,0); // no gotos or breaks between the UNDOACTIONs allowed
-/**/SENDMSGTOED(pfr->hwndEditor, (pfr->ScintillaFlags&SCFIND_REGEXP)?SCI_REPLACETARGETRE:SCI_REPLACETARGET ,pfr->wReplaceWithLen, pfr->lpstrReplaceWith);
-    if (uFindCase!=CASEMIXED) { // apply the caseness to the replaced text
-      unsigned vLen; void *vBuf=strdupSCI_GetTargetTextAW(pfr->hwndEditor,(pfr->InternalFlags&FRI_UNICODE),0,NULL,&vLen);
-      if (vBuf) {
-        if (pfr->InternalFlags&FRI_UNICODE) {
+				}
+				if (uUpChars && !uLowChars)
+					uFindCase = CASEUPPER;
+				else if (uLowChars && !uUpChars)
+					uFindCase = CASELOWER;
+				freesafe(vBuf, _T("PopFindReplaceText"));
+			}
+		}
+		if (fUnify) SENDMSGTOED(pfr->hwndEditor, SCI_BEGINUNDOACTION, 0, 0); // no gotos or breaks between the UNDOACTIONs allowed
+		/**/SENDMSGTOED(pfr->hwndEditor, (pfr->ScintillaFlags&SCFIND_REGEXP) ? SCI_REPLACETARGETRE : SCI_REPLACETARGET, pfr->wReplaceWithLen, pfr->lpstrReplaceWith);
+		if (uFindCase != CASEMIXED) { // apply the caseness to the replaced text
+			unsigned vLen; void *vBuf = strdupSCI_GetTargetTextAW(pfr->hwndEditor, (pfr->InternalFlags&FRI_UNICODE), 0, NULL, &vLen);
+			if (vBuf) {
+				if (pfr->InternalFlags&FRI_UNICODE) {
 #define sReplTextW ((wchar_t *)vBuf)
-          if (CapsTablesWStart(sizeof(wchar_t))) {
-            unsigned i; for(i=0; i<vLen; i++) sReplTextW[i]=(uFindCase==CASEUPPER)?CharUpperXW(sReplTextW[i]):CharLowerXW(sReplTextW[i]);
-            SCI_ReplaceTargetW(pfr->hwndEditor,vLen,sReplTextW);
-            CapsTablesWStop(0);
-          }
+					unsigned i;
+					for (i = 0; i < vLen; i++)
+						sReplTextW[i] = (uFindCase == CASEUPPER) ? (TCHAR)CharUpperW((LPWSTR)sReplTextW[i]) : (TCHAR)CharLowerW((LPWSTR)sReplTextW[i]);
+					SCI_ReplaceTargetW(pfr->hwndEditor, vLen, sReplTextW);
 #undef sReplTextW
-        } else {
-#define sReplTextA ((char *)vBuf)
-          unsigned i; for(i=0; i<vLen; i++) sReplTextA[i]=(uFindCase==CASEUPPER)?CharUpperXA(sReplTextA[i]):CharLowerXA(sReplTextA[i]);
-          SENDMSGTOED(pfr->hwndEditor, SCI_REPLACETARGET,vLen,sReplTextA);
-#undef sReplTextA
-        }
-        freesafe(vBuf, _T("PopFindReplaceText"));
-      }
-    }
-    //if (pfr->cCounter) {
-    //}
-    int cchReplacedx=SENDMSGTOED(pfr->hwndEditor, SCI_GETTARGETEND,0,0)-epTargEnd;
-    //unsigned ep1Old=pfr->ep1,ep2Old=pfr->ep2; // DEBUG line
-    if (pfr->ep1>epTargEnd) pfr->ep1 += cchReplacedx;
-    if (pfr->ep2>epTargEnd) pfr->ep2 += cchReplacedx;
-    epTargEnd+=cchReplacedx;
-    if (XORLOGICAL(pfr->PersistentFlags&FRP_UP,pfr->PersistentFlags&FRP_RECURSIVE)) {
-      pfr->eprpHead=epTargStart;
-      pfr->eprpTail=epTargEnd;
-    } else {
-      pfr->eprpHead=epTargEnd;
-      pfr->eprpTail=epTargStart;
-    } // Order is only important for SCI_SETSEL, the next search/replace chooses its own order
-    if (!(pfr->InternalFlags&FRI_INVISIBLE)) SENDMSGTOED(pfr->hwndEditor, SCI_SETSEL,pfr->eprpTail,pfr->eprpHead); //MessageBoxFree(pfr->hwndSelf,smprintf(TEXT("cchReplacedx:%d ep1Old:%u ep2Old:%u ep1New:%u ep2New:%u targstart:%u targend:%u"),cchReplacedx,ep1Old,ep2Old,pfr->ep1,pfr->ep2,pfr->eprpHead,pfr->eprpTail),TEXT("???"),MB_OK);
-    if (fUnify) SENDMSGTOED(pfr->hwndEditor, SCI_ENDUNDOACTION,0,0);
-    return(((pfr->PersistentFlags&FRP_RECURSIVE) && cchReplacedx>=0)?1:2);
-  }
+				}
+				else {
+					// XXX Noooooo!
+				}
+				freesafe(vBuf, _T("PopFindReplaceText"));
+			}
+		}
+		//if (pfr->cCounter) {
+		//}
+		int cchReplacedx = SENDMSGTOED(pfr->hwndEditor, SCI_GETTARGETEND, 0, 0) - epTargEnd;
+		//unsigned ep1Old=pfr->ep1,ep2Old=pfr->ep2; // DEBUG line
+		if (pfr->ep1 > epTargEnd) pfr->ep1 += cchReplacedx;
+		if (pfr->ep2 > epTargEnd) pfr->ep2 += cchReplacedx;
+		epTargEnd += cchReplacedx;
+		if (XORLOGICAL(pfr->PersistentFlags&FRP_UP, pfr->PersistentFlags&FRP_RECURSIVE)) {
+			pfr->eprpHead = epTargStart;
+			pfr->eprpTail = epTargEnd;
+		}
+		else {
+			pfr->eprpHead = epTargEnd;
+			pfr->eprpTail = epTargStart;
+		} // Order is only important for SCI_SETSEL, the next search/replace chooses its own order
+		if (!(pfr->InternalFlags&FRI_INVISIBLE))
+			SENDMSGTOED(pfr->hwndEditor, SCI_SETSEL, pfr->eprpTail, pfr->eprpHead); //MessageBoxFree(pfr->hwndSelf,smprintf(TEXT("cchReplacedx:%d ep1Old:%u ep2Old:%u ep1New:%u ep2New:%u targstart:%u targend:%u"),cchReplacedx,ep1Old,ep2Old,pfr->ep1,pfr->ep2,pfr->eprpHead,pfr->eprpTail),TEXT("???"),MB_OK);
+		if (fUnify)
+			SENDMSGTOED(pfr->hwndEditor, SCI_ENDUNDOACTION, 0, 0);
+		return(((pfr->PersistentFlags&FRP_RECURSIVE) && cchReplacedx >= 0) ? 1 : 2);
+	}
 }
 
 /* Scintilla is not well behaved for Dialog Boxes. It doesn't honor ES_WANTRETURN       and it consumes TAB and Shift-TAB

@@ -19,6 +19,12 @@
     <Filter Include="Source Files\Text FX source">
       <UniqueIdentifier>{fc04e730-b0b3-4d8a-a471-760313bf3120}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Unittests\internal">
+      <UniqueIdentifier>{6bbb9305-c44d-4946-bd33-053ca5ae3777}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Unittests\features">
+      <UniqueIdentifier>{abcaa78d-a30a-4a83-bd15-bc4d5565e839}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
@@ -30,16 +36,13 @@
     <ClInclude Include="..\SRC\enable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="scintilla_simu.h">
+      <Filter>Source Files\Unittests</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RoundToNextPowerTest.cpp">
-      <Filter>Source Files\Unittests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SRC\CapsTables.cpp">
-      <Filter>Source Files\Text FX source</Filter>
     </ClCompile>
     <ClCompile Include="..\SRC\MicroXML\MicroXML.cpp">
       <Filter>Source Files\Text FX source</Filter>
@@ -53,20 +56,59 @@
     <ClCompile Include="..\SRC\Poppad\Popfind.cpp">
       <Filter>Source Files\Text FX source</Filter>
     </ClCompile>
-    <ClCompile Include="..\SRC\TransformsW.cpp">
-      <Filter>Source Files\Text FX source</Filter>
-    </ClCompile>
     <ClCompile Include="..\SRC\Scintilla\UniConversion.cpp">
       <Filter>Source Files\Text FX source</Filter>
     </ClCompile>
     <ClCompile Include="ArmReallocTest.cpp">
-      <Filter>Source Files\Unittests</Filter>
+      <Filter>Source Files\Unittests\internal</Filter>
     </ClCompile>
-    <ClCompile Include="StrnCpyArmTest.cpp">
-      <Filter>Source Files\Unittests</Filter>
+    <ClCompile Include="RoundToNextPowerTest.cpp">
+      <Filter>Source Files\Unittests\internal</Filter>
     </ClCompile>
     <ClCompile Include="SprintfTest.cpp">
+      <Filter>Source Files\Unittests\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="StrnCpyArmTest.cpp">
+      <Filter>Source Files\Unittests\internal</Filter>
+    </ClCompile>
+    <ClCompile Include="Characters.cpp">
+      <Filter>Source Files\Unittests\features</Filter>
+    </ClCompile>
+    <ClCompile Include="Convert.cpp">
+      <Filter>Source Files\Unittests\features</Filter>
+    </ClCompile>
+    <ClCompile Include="Edit.cpp">
+      <Filter>Source Files\Unittests\features</Filter>
+    </ClCompile>
+    <ClCompile Include="HTML Tidy.cpp">
+      <Filter>Source Files\Unittests\features</Filter>
+    </ClCompile>
+    <ClCompile Include="Insert.cpp">
+      <Filter>Source Files\Unittests\features</Filter>
+    </ClCompile>
+    <ClCompile Include="Quick.cpp">
+      <Filter>Source Files\Unittests\features</Filter>
+    </ClCompile>
+    <ClCompile Include="Settings.cpp">
+      <Filter>Source Files\Unittests\features</Filter>
+    </ClCompile>
+    <ClCompile Include="Tools.cpp">
+      <Filter>Source Files\Unittests\features</Filter>
+    </ClCompile>
+    <ClCompile Include="Viz Settings.cpp">
+      <Filter>Source Files\Unittests\features</Filter>
+    </ClCompile>
+    <ClCompile Include="Viz.cpp">
+      <Filter>Source Files\Unittests\features</Filter>
+    </ClCompile>
+    <ClCompile Include="keyboard.cpp">
+      <Filter>Source Files\Unittests\features</Filter>
+    </ClCompile>
+    <ClCompile Include="scintilla_simu.cpp">
       <Filter>Source Files\Unittests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SRC\Transforms.cpp">
+      <Filter>Source Files\Text FX source</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -15,7 +15,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 TEST_MODULE_INITIALIZE(ModuleInitialize)
 {
-	Logger::WriteMessage("In RoundToNextPowerTest Module Initialize");
+	Logger::WriteMessage("In RoundToNextPowerTest Module Initialize. There can be only 1 module initializer, and this is it.");
 }
 
 namespace Tests

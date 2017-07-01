@@ -174,13 +174,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\Minilzo\minilzo.cpp" />
-    <ClCompile Include="..\Src\CapsTables.cpp" />
     <ClCompile Include="..\Src\MicroXML\MicroXML.cpp" />
     <ClCompile Include="..\Src\NPPTextFX.cpp" />
     <ClCompile Include="..\Src\Poppad\Popfind.cpp" />
     <ClCompile Include="..\Src\Scintilla\UniConversion.cpp" />
-    <ClCompile Include="..\Src\TransformsA.cpp" />
-    <ClCompile Include="..\Src\TransformsW.cpp" />
+    <ClCompile Include="..\SRC\Transforms.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Src\CapsTables.H" />
@@ -190,7 +188,7 @@
     <ClInclude Include="..\Src\NPPTextFX_private.h" />
     <ClInclude Include="..\Src\PluginInterface.h" />
     <ClInclude Include="..\Src\Scintilla.h" />
-    <ClInclude Include="..\Src\TransformsT.h" />
+    <ClInclude Include="Transforms.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\Src\NPPTextFX.rc" />
