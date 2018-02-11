@@ -298,4 +298,9 @@ EXTERNC PFUNCPLUGINCMD pflittlendiantohexbyteruns(void);
 EXTERNC PFUNCPLUGINCMD pfconverteol(void);
 EXTERNC PFUNCPLUGINCMD pfsplitlinesatchvb(void);
 EXTERNC PFUNCPLUGINCMD pfsplitlinesatchc(void);
+
+EXTERNC PFUNCPLUGINCMD pfMarkWordFindReverse(void);
+EXTERNC PFUNCPLUGINCMD pfMarkWordFindForward(void);
+EXTERNC PFUNCPLUGINCMD pfMarkWordFindCaseSensitive(void);
+EXTERNC PFUNCPLUGINCMD pfMarkWordFindWholeWord(void);
 // SUBSECTION: END

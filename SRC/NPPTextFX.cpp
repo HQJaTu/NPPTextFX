@@ -5873,23 +5873,27 @@ EXTERNC PFUNCPLUGINCMD pfAboutExperimental(void) {
 EXTERNC PFUNCPLUGINCMD pfhNotepadweb(void) { LaunchURL(_T("http://notepad-plus.sourceforge.net/")); }
 
 // From PSPAD
-BOOL g_fMarkWordFindCaseSensitive = FALSE, g_fMarkWordFindWholeWord = FALSE;
+BOOL g_fMarkWordFindCaseSensitive = FALSE;
+BOOL g_fMarkWordFindWholeWord = FALSE;
 EXTERNC void MarkWordFind(int dir) {
-	struct TextToFind tr; //MessageBox(0,"???","???",MB_OK);
+	struct TextToFind tr;
 	INT_CURRENTEDIT;
 	GET_CURRENTEDIT;
 	unsigned curpos = SENDMSGTOCED(currentEdit, SCI_GETCURRENTPOS, 0, 0);
 	unsigned p1 = SENDMSGTOCED(currentEdit, SCI_GETSELECTIONSTART, 0, 0);
 	unsigned p2 = SENDMSGTOCED(currentEdit, SCI_GETSELECTIONEND, 0, 0);
-	unsigned sellen; if ((sellen = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0)) <= 1) {
+	unsigned sellen;
+	if ((sellen = SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, 0)) <= 1) {
 		unsigned word1 = SENDMSGTOCED(currentEdit, SCI_WORDSTARTPOSITION, curpos, TRUE);
 		unsigned word2 = SENDMSGTOCED(currentEdit, SCI_WORDENDPOSITION, curpos, TRUE);
 		if (word1 != word2)
 			SENDMSGTOCED(currentEdit, SCI_SETSEL, dir < 0 ? word2 : word1, dir < 0 ? word1 : word2);
 		//MessageBoxFree(g_nppData._nppHandle,smprintf("selectionLength:%u word1:%u word2:%u",selectionLength,word1,word2),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
 	} else if ((p1 > 0 || dir > 0) && (tr.lpstrText = (TCHAR *)mallocsafe(sellen, _T("MarkWordFind")))) {
+		// Note: Abusing wide-char buffer in tr.lpstrText !
 		SENDMSGTOCED(currentEdit, SCI_GETSELTEXT, 0, tr.lpstrText);
-		tr.chrg.cpMin = dir < 0 ? p1 : p2; tr.chrg.cpMax = dir < 0 ? 0 : SENDMSGTOCED(currentEdit, SCI_GETLENGTH, 0, 0);
+		tr.chrg.cpMin = dir < 0 ? p1 : p2;
+		tr.chrg.cpMax = dir < 0 ? 0 : SENDMSGTOCED(currentEdit, SCI_GETLENGTH, 0, 0);
 		//MessageBoxFree(g_nppData._nppHandle,smprintf("cpMin:%u cpMax:%u text:%s",tr.chrg.cpMin,tr.chrg.cpMax,tr.lpstrText),PLUGIN_NAME, MB_OK|MB_ICONINFORMATION);
 		int findpos;
 		if ((findpos = SENDMSGTOCED(currentEdit, SCI_FINDTEXT, (g_fMarkWordFindCaseSensitive ? SCFIND_MATCHCASE : 0) | (g_fMarkWordFindWholeWord ? SCFIND_WHOLEWORD : 0), &tr)) != -1) {
@@ -5899,6 +5903,7 @@ EXTERNC void MarkWordFind(int dir) {
 		freesafe(tr.lpstrText, _T("MarkWordFind"));
 	}
 }
+
 EXTERNC PFUNCPLUGINCMD pfMarkWordFindReverse(void) { MarkWordFind(-1); }
 EXTERNC PFUNCPLUGINCMD pfMarkWordFindForward(void) { MarkWordFind(+1); }
 

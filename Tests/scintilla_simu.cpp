@@ -28,6 +28,9 @@ namespace Tests
 		char tmpTextBuffer[TEST_BUFFER_CHARS];
 		size_t textLen;
 		size_t charsToCopy;
+		int tmpPos;
+		char* tmpChar;
+		TextToFind* textToFind;
 
 		// All our calculations are based on fact that anchor position is first, then current position in left-to-right -fashion.
 		// User selection can be right-to-left.
@@ -45,6 +48,9 @@ namespace Tests
 			Logger::WriteMessage("SCI_START");
 			break;
 		case SCI_GETCURRENTPOS:
+			return currentPosition;
+		case SCI_GETSELECTIONSTART:
+		case SCI_GETSELECTIONEND:
 			return currentPosition;
 		case SCI_GETANCHOR:
 			return anchorPosition;
@@ -149,6 +155,51 @@ namespace Tests
 			return NULL;
 		case SCI_GETCODEPAGE:
 			return 0;	// Default code page
+		case SCI_WORDSTARTPOSITION:
+			tmpPos = (int)wParam;
+			while (tmpPos && textBuffer[tmpPos] != ' ')
+				--tmpPos;
+			return tmpPos;
+		case SCI_WORDENDPOSITION:
+			tmpPos = (int)wParam;
+			textLen = strlen(textBuffer);
+			while (tmpPos < textLen && textBuffer[tmpPos] != ' ')
+				++tmpPos;
+			return tmpPos;
+		case SCI_SETSEL:
+			anchorPosition = (unsigned)wParam;
+			currentPosition = (unsigned)lParam;
+			break;
+		case SCI_FINDTEXT:
+			// Scintilla.h:
+			// #define SCFIND_WHOLEWORD 2
+			// #define SCFIND_MATCHCASE 4
+
+			textToFind = (TextToFind*)lParam;
+			swprintf(tmpString, 256, _T("Range: %d - %d\n"), textToFind->chrg.cpMin, textToFind->chrg.cpMax);
+			Logger::WriteMessage(tmpString);
+			{
+				// Note: textToFind->lpstrText is wide-character buffer, but because UCS-2, we must treat it as not like one.
+				size_t textLength = strlen((const char*)textToFind->lpstrText);
+				if (!textToFind->lpstrText || !textLength) {
+					Assert::Fail(_T("Need text and need text to search for!"));
+				}
+
+				char* ptr = textBuffer;
+				while ((ptr = strstr(ptr, (const char*)textToFind->lpstrText))) {
+					if ((int)(ptr - textBuffer) >= currentPosition) {
+						// Don't find the highlighted text. That's what we're searching
+						break;
+					}
+					tmpChar = ptr++;
+				}
+			}
+			if (!tmpChar)
+				return 0;
+			return (int)(tmpChar - textBuffer);
+		case SCI_GOTOPOS:
+			anchorPosition = (unsigned)wParam;
+			break;
 		default:
 			swprintf(tmpString, 256, _T("SendScintillaMessage: Not handling message ID %d"), Msg);
 			Logger::WriteMessage(tmpString);

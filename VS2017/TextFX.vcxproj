@@ -168,7 +168,7 @@
       <ImportLibrary>$(OutDir)TextFX.lib</ImportLibrary>
     </Link>
     <PostBuildEvent>
-      <Command>copy x64\NppTextFX_D.dll "..\..\notepad-plus-plus\PowerEditor\visual.net\x64\Unicode Debug\plugins\"</Command>
+      <Command>copy x64\NppTextFX_D.dll "..\..\notepad-plus-plus\PowerEditor\bin64\plugins\"</Command>
       <Message>Copy DLL</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
